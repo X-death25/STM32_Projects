@@ -131,7 +131,7 @@ const struct usb_endpoint_descriptor hid_endpoint[] =
         .bEndpointAddress = 0x81,
         .bmAttributes = USB_ENDPOINT_ATTR_INTERRUPT,
         .wMaxPacketSize = 64,
-        .bInterval = 0x05,
+        .bInterval = 0x02,
     },
     {
         .bLength = USB_DT_ENDPOINT_SIZE,
@@ -139,7 +139,7 @@ const struct usb_endpoint_descriptor hid_endpoint[] =
         .bEndpointAddress = 0x01,
         .bmAttributes = USB_ENDPOINT_ATTR_INTERRUPT,
         .wMaxPacketSize = 64,
-        .bInterval = 0x05,
+        .bInterval = 0x02,
     }
 
 };
@@ -374,9 +374,6 @@ void SetData_Input(void)
      * CRL & CRH is 32 bit register Low for 0..7 High for 8..15 
      CNF = 01 for Input Float  & MODE = 00 for INPUT Mode -*/ 
     
-  //  gpio_set_mode(GPIOA, GPIO_MODE_INPUT, GPIO_CNF_INPUT_FLOAT,D6|D7|D8|D9);
-  //  gpio_set_mode(GPIOB, GPIO_MODE_INPUT, GPIO_CNF_INPUT_FLOAT,D0|D1|D2|D3|D4|D5|D10|D11|D12|D13|D14|D15);
- 
       GPIO_CRL(GPIOA) = 0x66666666;
       GPIO_CRH(GPIOA) = 0x44446444;
       GPIO_CRL(GPIOB) = 0x44144414;
@@ -384,7 +381,7 @@ void SetData_Input(void)
 }
 
 void SetData_OUTPUT(void)
-{
+{ 
     GPIO_CRL(GPIOA) = 0x66666666;
     GPIO_CRH(GPIOA) = 0x64446666;
     GPIO_CRL(GPIOB) = 0x66166111;
@@ -438,94 +435,96 @@ void DirectWrite8(unsigned char val)
 #define D4 GPIO4  // PB4 
 #define D5 GPIO3  // PB3 
 #define D6 GPIO15 //PA15  
-#define D7 GPIO10 //PA10 */
+#define D7 GPIO10 //PA10
+*/
+//GPIO_ODR(GPIOB) = 0x00; // Fix BOOT 0 & OE 1
+//GPIO_ODR(GPIOB) = (GPIO_ODR(GPIOB) & 0x0F) | ( (val & 0x20)<<3); // turn PB3 to bit 5 of val
+//GPIO_ODR(GPIOB) = (GPIO_ODR(GPIOB) & 0x1F) | ( (val & 0x10)<<4); // turn PB4 to bit 4 of val
+//GPIO_ODR(GPIOB) = (GPIO_ODR(GPIOB) & 0x3F) | ( (val & 0x08)<<6); // turn PB6 to bit 3 of val
+//GPIO_ODR(GPIOB) = (GPIO_ODR(GPIOB) & 0x7F) | ( (val & 0x04)<<7); // turn PB7 to bit 2 of val
+//GPIO_ODR(GPIOB) = (GPIO_ODR(GPIOB) & 0xFF) | ( (val & 0x02)<<8); // turn PB8 to bit 1 of val
+//GPIO_ODR(GPIOB) = (GPIO_ODR(GPIOB) & 0x1FF)| ( (val & 0x01)<<9); // turn PB9 to bit 0 of val
+//GPIO_ODR(GPIOA) = (GPIO_ODR(GPIOA) & 0xFFFF)| ( val & 0x40); // turn PA15 to bit 6 of val
+//GPIO_ODR(GPIOA) = (GPIO_ODR(GPIOA) & 0x7FF)| ( val & 0x80); // turn PA10 to bit 7 of val
+//GPIO_ODR(GPIOB) & 0x3F |= val & 0x08; // turn PB6 to bit 3 of val
+/* 
+GPIO_ODR(GPIOB) =  (GPIO_ODR(GPIOB) | (val & 0x01) << 9); // D0
+GPIO_ODR(GPIOB) =  (GPIO_ODR(GPIOB) | (val & 0x02) << 7);   // D1
+GPIO_ODR(GPIOB) =  (GPIO_ODR(GPIOB) | (val & 0x04) << 5);   // D2
+GPIO_ODR(GPIOB) =  (GPIO_ODR(GPIOB)| (val & 0x08) << 3);  // D3
+GPIO_ODR(GPIOB) =  (GPIO_ODR(GPIOB)| (val & 0x10)); // D4
+GPIO_ODR(GPIOB) =  (GPIO_ODR(GPIOB) | (val & 0x20) >>2);  // D5
+GPIO_ODR(GPIOA) =  (GPIO_ODR(GPIOA)  | (val & 0x40) << 9);  // D6
+GPIO_ODR(GPIOA) =   (GPIO_ODR(GPIOA)| (val & 0x80) << 3);   // D7*/
  
- GPIO_ODR(GPIOB) =  GPIO_ODR(GPIOB) | ((val & 0x01) << 9); // D0
- GPIO_ODR(GPIOB) =  GPIO_ODR(GPIOB) | ((val & 0x02) << 8); // D1
- GPIO_ODR(GPIOB) =  GPIO_ODR(GPIOB) | ((val & 0x04) << 7); // D2
- GPIO_ODR(GPIOB) =  GPIO_ODR(GPIOB) | ((val & 0x08) << 6); // D3
- GPIO_ODR(GPIOB) =  GPIO_ODR(GPIOB) | ((val & 0x10) << 4); // D4
- GPIO_ODR(GPIOB) =  GPIO_ODR(GPIOB) | ((val & 0x20) << 3); // D5
- GPIO_ODR(GPIOB) =  GPIO_ODR(GPIOA) | ((val & 0x40) << 15); // D6
- GPIO_ODR(GPIOB) =  GPIO_ODR(GPIOA) | ((val & 0x80) << 10); // D7
- /*
- GPIO_ODR(GPIOB) =  (GPIO_ODR(GPIOB) & 0x100) & ( val & 0x02); // D1
- GPIO_ODR(GPIOB) =  (GPIO_ODR(GPIOB) & 0x80)  & ( val & 0x04); // D2
- GPIO_ODR(GPIOB) =  (GPIO_ODR(GPIOB) & 0x40)  & ( val & 0x08); // D3
- GPIO_ODR(GPIOB) =  (GPIO_ODR(GPIOB) & 0x10)  & ( val & 0x10); // D4
- GPIO_ODR(GPIOB) =  (GPIO_ODR(GPIOB) & 0x08)  & ( val & 0x20); // D5
- GPIO_ODR(GPIOB) =  (GPIO_ODR(GPIOA) & 0x8000)& ( val & 0x40); // D6
- GPIO_ODR(GPIOB) =  (GPIO_ODR(GPIOA) & 0x400) & ( val & 0x80); // D7*/
+//GPIO_ODR(GPIOB) = GPIO_ODR(GPIOB) | (1 << 1); // Re-Enable OE 1
+//GPIO_ODR(GPIOB) = GPIO_ODR(GPIOB) | (1 << 5); // Re-Enable WE 1
 
- 
-
-
-  
- // GPIO_ODR(GPIOC)
-   /* if(val&1)
+ if(val&1)
     {
-        gpio_set(GPIOB,D0);
+       GPIO_ODR(GPIOB) = GPIO_ODR(GPIOB) | (1 << 9); 
     }
     else
     {
-        gpio_clear(GPIOB,D0);
+        GPIO_ODR(GPIOB) = GPIO_ODR(GPIOB) & ~(1 << 9);
     }
     if((val>>1)&1)
     {
-        gpio_set(GPIOB,D1);
+        GPIO_ODR(GPIOB) = GPIO_ODR(GPIOB) | (1 << 8); 
     }
     else
     {
-        gpio_clear(GPIOB,D1);
+        GPIO_ODR(GPIOB) = GPIO_ODR(GPIOB) & ~(1 << 8);
     }
     if((val>>2)&1)
     {
-        gpio_set(GPIOB,D2);
+         GPIO_ODR(GPIOB) = GPIO_ODR(GPIOB) | (1 << 7); 
     }
     else
     {
-        gpio_clear(GPIOB,D2);
+        GPIO_ODR(GPIOB) = GPIO_ODR(GPIOB) & ~(1 << 7);
     }
     if((val>>3)&1)
     {
-        gpio_set(GPIOB,D3);
+        GPIO_ODR(GPIOB) = GPIO_ODR(GPIOB) | (1 << 6); 
     }
     else
     {
-        gpio_clear(GPIOB,D3);
+         GPIO_ODR(GPIOB) = GPIO_ODR(GPIOB) & ~(1 << 6);
     }
     if((val>>4)&1)
     {
-        gpio_set(GPIOB,D4);
+        GPIO_ODR(GPIOB) = GPIO_ODR(GPIOB) | (1 << 4); 
     }
     else
     {
-        gpio_clear(GPIOB,D4);
+        GPIO_ODR(GPIOB) = GPIO_ODR(GPIOB) & ~(1 << 4);
     }
     if((val>>5)&1)
     {
-        gpio_set(GPIOB,D5);
+        GPIO_ODR(GPIOB) = GPIO_ODR(GPIOB) | (1 << 3);
     }
     else
     {
-        gpio_clear(GPIOB,D5);
+         GPIO_ODR(GPIOB) = GPIO_ODR(GPIOB) & ~(1 << 3);
     }
     if((val>>6)&1)
     {
-        gpio_set(GPIOA,D6);
+        GPIO_ODR(GPIOA) = GPIO_ODR(GPIOA) | (1 << 15);
     }
     else
     {
-        gpio_clear(GPIOA,D6);
+        GPIO_ODR(GPIOA) = GPIO_ODR(GPIOA) & ~(1 << 15);
     }
     if((val>>7)&1)
     {
-        gpio_set(GPIOA,D7);
+        GPIO_ODR(GPIOA) = GPIO_ODR(GPIOA) | (1 << 10);
     }
     else
     {
-        gpio_clear(GPIOA,D7);
-    }*/
+        GPIO_ODR(GPIOA) = GPIO_ODR(GPIOA) & ~(1 << 10);
+    }
+
 }
 
 void DirectWrite16(unsigned short val)
@@ -850,16 +849,12 @@ void sys_tick_handler(void)
 	      {
 		hid_interrupt=0; // Disable HID Interrupt
 		SetData_OUTPUT();
+		DirectWrite8(0x01);
+
 	
-              hid_buffer_OUT[0]=GPIO_CRL(GPIOB) & 0xFF;
-              hid_buffer_OUT[1]=(GPIO_CRL(GPIOB) & 0xFF00)>>8;
-              hid_buffer_OUT[2]=(GPIO_CRL(GPIOB) & 0xFF0000)>>16;
-              hid_buffer_OUT[3]=(GPIO_CRL(GPIOB) & 0xFF000000)>>24;
-	    
-	      hid_buffer_OUT[4]=GPIO_CRH(GPIOB) & 0xFF;
-              hid_buffer_OUT[5]=(GPIO_CRH(GPIOB) & 0xFF00)>>8;
-              hid_buffer_OUT[6]=(GPIO_CRH(GPIOB) & 0xFF0000)>>16;
-              hid_buffer_OUT[7]=(GPIO_CRH(GPIOB) & 0xFF000000)>>24;
+              hid_buffer_OUT[1]=GPIO_ODR(GPIOB) & 0xFF;
+              hid_buffer_OUT[0]=(GPIO_ODR(GPIOB) & 0xFF00)>>8;
+
 	    
 		usbd_ep_write_packet(usbd_dev, 0x81,hid_buffer_OUT, sizeof(hid_buffer_OUT));
 		gpio_clear(GPIOC, GPIO13);
