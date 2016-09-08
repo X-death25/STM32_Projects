@@ -99,8 +99,8 @@ int main()
     switch(choixMenu)
     {
     case 1:
-        printf("Sending command Dump Header \n");
-        printf("Trying to Dump ...\n");
+        printf("Sending command Dump ROM \n");
+        printf("Dumping please wait ...\n");
         HIDCommand[0] = 0x09; // Select NextPage Command
         // building adress
 
@@ -117,8 +117,8 @@ int main()
             HIDCommand[3]=(adress & 0xFF0000)>>16;
             HIDCommand[4]=(adress & 0xFF000000)>>24;
             ReadOK=1;
-            rawhid_send(0,HIDCommand,64,15);
-            num = rawhid_recv(0, buf, 64, 15);
+            rawhid_send(0,HIDCommand,64,12);
+            num = rawhid_recv(0, buf, 64, 12);
             if (num < 0)
             {
                 printf("\nerror reading... \n");
@@ -127,13 +127,13 @@ int main()
             }
             if (num > 0)
             {
-                printf("\nrecu %d bytes:\n", num);
-                for (i=0; i<num; i++)
+               // printf("\nrecu %d bytes:\n", num);
+               /* for (i=0; i<num; i++)
                 {
                     printf("%02X ", buf[i] & 255);
                     if (i % 16 == 15 && i < num-1) printf("\n");
                 }
-                printf("\n\n");
+                printf("\n\n");*/
                 ReadOK=0;
             }
 
@@ -148,7 +148,7 @@ int main()
         dump=fopen("dump.bin","wb");
         fwrite(BufferROM,1,1024*128,dump);
 	time = clock();
-	printf("Dump time : = %d ms", time);
+	printf("Dump completed in %d ms", time);
 	scanf("%d");
 
     case 2:
