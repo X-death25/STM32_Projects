@@ -25,7 +25,7 @@ static char get_keystroke(void);
 int main()
 {
     int  r, num;
-    char buf[64];
+    unsigned char buf[64];
     int choixMenu=0;
     int ReadOK=1;
     unsigned long adress=0;
@@ -58,11 +58,12 @@ int main()
     }
 
     printf("found HID Megadrive Dumper ! \n\n");
-    printf("Receiving game info ...\n");
+    printf("Receiving game info ...\n\n");
 
 
-    /*
-    	HIDCommand[0] = WakeUP; // Select WakeUP Command
+    //////////////
+    
+    HIDCommand[0] = WakeUP; // Select WakeUP Command
     	rawhid_send(0,HIDCommand,64,5);
 
     	while (ReadOK !=0)
@@ -75,18 +76,57 @@ int main()
     			return 0;
     		}
     		if (num > 0) {
-    			printf("\nrecu %d bytes:\n", num);
+    			/*printf("\nrecu %d bytes:\n", num);
     			for (i=0; i<num; i++) {
     				printf("%02X ", buf[i] & 255);
     				if (i % 16 == 15 && i < num-1) printf("\n");
     			}
-    			printf("\n\n");
+    			printf("\n\n");*/
     			ReadOK=0;
     		}
 
 
-    	}
-    	*/
+    	}   
+    unsigned char ReleaseDate[8];
+    unsigned char GameName[32];
+    unsigned long Gamesize=0;
+    unsigned short SaveSize=0;
+    
+    for (i=0; i<8; i++) 
+    {
+      ReleaseDate[i]=buf[i];     
+    }
+    
+     for (i=0; i<32-8 ; i++) 
+    {
+      GameName[i]=buf[i+8];     
+    }
+    
+    Gamesize = ((buf[42]) | (buf[41] << 8) | (buf[40]<<16));
+    Gamesize=(Gamesize/1024)+1; 
+    SaveSize = ((buf[45]) | (buf[46] << 8));
+    SaveSize=(SaveSize/1024)+1;   
+      
+   printf("Game Name : %s \n",GameName);
+   printf("\nRelease Date : %s \n",ReleaseDate);
+   printf("Game Size : %ld Ko \n",Gamesize);
+   if (buf[43]!=0x01){ printf("Save Support : No\n ");}
+   else {
+     printf("Save Support : Yes\n ");
+    printf("Save Size : %ld Ko \n",SaveSize);
+   if (buf[44]==0xF8){ printf("Save Type : SRAM\n ");}
+   if (buf[44]==0xE8){printf("Save Type : EEPROM\n ");}
+   else {printf("Save Type : NONE\n");}}
+  printf("Region : %c",buf[48]);
+  printf("%c",buf[49]);
+  printf("%c \n\n",buf[50]);
+     
+   
+  
+    
+    
+    
+    ///////////////
 
 
 
