@@ -38,7 +38,6 @@
  */
 
 #include "pinout.h"
-#include "UC_Prog.h"
 
 /* We need a special large control buffer for this device: */
 
@@ -46,6 +45,8 @@ uint8_t usbd_control_buffer[5*64];
 
 static uint8_t hid_buffer_IN[64];
 static uint8_t hid_buffer_OUT[64];
+
+static uint8_t header_buffer[64];
 
  static long adress=0;
 
@@ -427,38 +428,6 @@ void SetFlashWE(unsigned char state)
 
 void DirectWrite8(unsigned char val)
 {
- /* 
-  #define D0 GPIO9  // PB9
-#define D1 GPIO8  // PB8
-#define D2 GPIO7  // PB7
-#define D3 GPIO6  // PB6
-#define D4 GPIO4  // PB4 
-#define D5 GPIO3  // PB3 
-#define D6 GPIO15 //PA15  
-#define D7 GPIO10 //PA10
-*/
-//GPIO_ODR(GPIOB) = 0x00; // Fix BOOT 0 & OE 1
-//GPIO_ODR(GPIOB) = (GPIO_ODR(GPIOB) & 0x0F) | ( (val & 0x20)<<3); // turn PB3 to bit 5 of val
-//GPIO_ODR(GPIOB) = (GPIO_ODR(GPIOB) & 0x1F) | ( (val & 0x10)<<4); // turn PB4 to bit 4 of val
-//GPIO_ODR(GPIOB) = (GPIO_ODR(GPIOB) & 0x3F) | ( (val & 0x08)<<6); // turn PB6 to bit 3 of val
-//GPIO_ODR(GPIOB) = (GPIO_ODR(GPIOB) & 0x7F) | ( (val & 0x04)<<7); // turn PB7 to bit 2 of val
-//GPIO_ODR(GPIOB) = (GPIO_ODR(GPIOB) & 0xFF) | ( (val & 0x02)<<8); // turn PB8 to bit 1 of val
-//GPIO_ODR(GPIOB) = (GPIO_ODR(GPIOB) & 0x1FF)| ( (val & 0x01)<<9); // turn PB9 to bit 0 of val
-//GPIO_ODR(GPIOA) = (GPIO_ODR(GPIOA) & 0xFFFF)| ( val & 0x40); // turn PA15 to bit 6 of val
-//GPIO_ODR(GPIOA) = (GPIO_ODR(GPIOA) & 0x7FF)| ( val & 0x80); // turn PA10 to bit 7 of val
-//GPIO_ODR(GPIOB) & 0x3F |= val & 0x08; // turn PB6 to bit 3 of val
-/* 
-GPIO_ODR(GPIOB) =  (GPIO_ODR(GPIOB) | (val & 0x01) << 9); // D0
-GPIO_ODR(GPIOB) =  (GPIO_ODR(GPIOB) | (val & 0x02) << 7);   // D1
-GPIO_ODR(GPIOB) =  (GPIO_ODR(GPIOB) | (val & 0x04) << 5);   // D2
-GPIO_ODR(GPIOB) =  (GPIO_ODR(GPIOB)| (val & 0x08) << 3);  // D3
-GPIO_ODR(GPIOB) =  (GPIO_ODR(GPIOB)| (val & 0x10)); // D4
-GPIO_ODR(GPIOB) =  (GPIO_ODR(GPIOB) | (val & 0x20) >>2);  // D5
-GPIO_ODR(GPIOA) =  (GPIO_ODR(GPIOA)  | (val & 0x40) << 9);  // D6
-GPIO_ODR(GPIOA) =   (GPIO_ODR(GPIOA)| (val & 0x80) << 3);   // D7*/
- 
-//GPIO_ODR(GPIOB) = GPIO_ODR(GPIOB) | (1 << 1); // Re-Enable OE 1
-//GPIO_ODR(GPIOB) = GPIO_ODR(GPIOB) | (1 << 5); // Re-Enable WE 1
 
  if(val&1)
     {
@@ -803,6 +772,51 @@ void ByteProgramFlash(int adress , int byte)
     delayMicroseconds(5);
 }
 
+void ReadMDHeader(void)
+{
+  // Clean buffer
+  
+    for (unsigned int i = 0; i < 64; i++)
+    {
+        header_buffer[i]=0x00;
+    }
+
+   
+    // Write Release Date
+    
+      for (unsigned int i = 0; i < 8; i++)
+    {
+        header_buffer[i]=ReadFlash8(0x118+i);
+    }
+    
+    // Write Name
+    
+      for (unsigned int i = 0; i < 32; i++)
+    {
+        header_buffer[i+8]=ReadFlash8(0x120+i);
+    }
+    
+    // Write Game Size
+    
+    header_buffer[40]=ReadFlash8(0x1A5);
+    header_buffer[41]=ReadFlash8(0x1A6);
+    header_buffer[42]=ReadFlash8(0x1A7);
+    
+    // Write Save info
+    
+    header_buffer[43]=ReadFlash8(0x1B7); // Save Support
+    header_buffer[44]=ReadFlash8(0x1B2); // Save Type
+    header_buffer[45]=ReadFlash8(0x1BA); // Save Size
+    header_buffer[46]=ReadFlash8(0x1BB);
+    
+    // Write Region Info
+    
+    header_buffer[48]=ReadFlash8(0x1C0);
+    header_buffer[49]=ReadFlash8(0x1C1);
+    header_buffer[50]=ReadFlash8(0x1C2);
+       
+}
+
 
 
 static void gpio_setup(void)
@@ -845,19 +859,9 @@ void sys_tick_handler(void)
   {
      usbd_ep_read_packet(usbd_dev,0x01,hid_buffer_IN,sizeof(hid_buffer_IN));
      
-      	    if (hid_buffer_IN[0] == 0x08 ) // HID Command Send Current OUT Buffer
+      	    if (hid_buffer_IN[0] == 0x08 ) // HID Command Send MD Header
 	      {
-		hid_interrupt=0; // Disable HID Interrupt
-		SetData_OUTPUT();
-		DirectWrite8(0x01);
-
-	
-              hid_buffer_OUT[1]=GPIO_ODR(GPIOB) & 0xFF;
-              hid_buffer_OUT[0]=(GPIO_ODR(GPIOB) & 0xFF00)>>8;
-
-	    
-		usbd_ep_write_packet(usbd_dev, 0x81,hid_buffer_OUT, sizeof(hid_buffer_OUT));
-		gpio_clear(GPIOC, GPIO13);
+		hid_interrupt = 0x08;
 	      }
 	      
 	     if (hid_buffer_IN[0] == 0x09  ) // HID Command Read Page ( 64 bytes)
@@ -939,36 +943,35 @@ int main(void)
     Init_Memory();
     gpio_set(GPIOC, GPIO13); /* LED /off */
     ResetFlash();
+    ReadMDHeader(); // Read some cool stuff 
     hid_interrupt=1; // Enable HID Interrupt
-  /*  
-    systick_interrupt_disable();
-    systick_counter_disable();
-    adress=0;
-    gpio_clear(GPIOA,Time);
-writeFlash8(0x5555,0xAA);
-    gpio_set(GPIOA,Time);
-    
-    */
-   
 
     while(1)
     {
         usbd_poll(usbd_dev);
 	
+          if (hid_interrupt == 0x08)  // Send MD Header
+	  {
+	    	hid_interrupt=0; // Disable HID Interrupt	    
+		usbd_ep_write_packet(usbd_dev, 0x81,header_buffer, sizeof(header_buffer));
+		hid_buffer_IN[0]=0; 
+	        hid_interrupt=1; // Enable HID Interrupt
+	  }
+	
 	  if (hid_interrupt == 0x09)  // Read Page
 	  {
 	     hid_interrupt=0;  // Disable HID Interrupt
 	     adress = hid_buffer_IN[1] |  (hid_buffer_IN[2] << 8 ) |  (hid_buffer_IN[3]<< 16) | (hid_buffer_IN[4]  << 24 );
-	     for (unsigned int i = 0; i < 64; i++)
-	      {
-		hid_buffer_OUT[i]=ReadFlash8(adress+i);
-	      }
+	       for (unsigned int i = 0; i < 64; i++)
+	         {
+		   hid_buffer_OUT[i]=ReadFlash8(adress+i);
+	         }
 	     usbd_ep_write_packet(usbd_dev, 0x81,hid_buffer_OUT, sizeof(hid_buffer_OUT));
 	     hid_buffer_IN[0]=0; 
 	     hid_interrupt=1; // Enable HID Interrupt
 	  }
-	  
-	  else{usbd_poll(usbd_dev);} 
+	  			  
+	//  else{usbd_poll(usbd_dev);} 
     }
 
 
