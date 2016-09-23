@@ -34,6 +34,7 @@
 #include <libopencm3/cm3/nvic.h>
 #include <libopencmsis/core_cm3.h>
 
+
 /*  Include Personal Functions
  */
 
@@ -275,11 +276,10 @@ static void hid_set_config(usbd_device *dev, uint16_t wValue)
     
     //systick configuration
     
-    /* 72MHz / 8 => 9000000 counts per second */
+    /* 72MHz / 8 => 9000000 counts per second : 9 Mhz */
     systick_set_clocksource(STK_CSR_CLKSOURCE_AHB_DIV8);
-    /* 9000000/9000 = 1000 overflows per second - every 1ms one interrupt */
-    /* SysTick interrupt every N clock pulses: set reload to N-1 */
-    systick_set_reload(8999);  //  1 ms interrupt
+    // Systick interrupt period 1ms -> 9MHz / 1kHz = 9000
+    systick_set_reload(9000 - 1);  //  1 ms interrupt
     systick_interrupt_enable();
     systick_counter_enable();
 
@@ -328,11 +328,11 @@ void Clean_IO(void)
     gpio_clear(GPIOB,D0|D1|D2|D3|D4|D5|D6|D7);
     gpio_clear(GPIOA,D8|D9|D10|D11|D12|D13|D14|D15);
 
-    gpio_set_mode(GPIOA, GPIO_MODE_OUTPUT_10_MHZ,GPIO_CNF_OUTPUT_PUSHPULL,Time);
-    gpio_set_mode(GPIOA, GPIO_MODE_OUTPUT_10_MHZ,GPIO_CNF_OUTPUT_PUSHPULL,Asel);
-    gpio_set_mode(GPIOA, GPIO_MODE_OUTPUT_10_MHZ,GPIO_CNF_OUTPUT_PUSHPULL,Mark3);
-    gpio_set_mode(GPIOC, GPIO_MODE_OUTPUT_10_MHZ,GPIO_CNF_OUTPUT_PUSHPULL,Sram_CE);
-    gpio_set_mode(GPIOA, GPIO_MODE_OUTPUT_10_MHZ,GPIO_CNF_OUTPUT_PUSHPULL,Clear);
+    gpio_set_mode(GPIOA, GPIO_MODE_OUTPUT_50_MHZ,GPIO_CNF_OUTPUT_PUSHPULL,Time);
+    gpio_set_mode(GPIOA, GPIO_MODE_OUTPUT_50_MHZ,GPIO_CNF_OUTPUT_PUSHPULL,Asel);
+    gpio_set_mode(GPIOA, GPIO_MODE_OUTPUT_50_MHZ,GPIO_CNF_OUTPUT_PUSHPULL,Mark3);
+    gpio_set_mode(GPIOC, GPIO_MODE_OUTPUT_50_MHZ,GPIO_CNF_OUTPUT_PUSHPULL,Sram_CE);
+    gpio_set_mode(GPIOA, GPIO_MODE_OUTPUT_50_MHZ,GPIO_CNF_OUTPUT_PUSHPULL,Clear);
 
     gpio_clear(GPIOA,Asel);
     gpio_set(GPIOA,Mark3);
@@ -345,16 +345,16 @@ void Init_Memory(void)
 
     //Setup Pins value
 
-    gpio_set_mode(GPIOA, GPIO_MODE_OUTPUT_10_MHZ,GPIO_CNF_OUTPUT_PUSHPULL,Clk1);
-    gpio_set_mode(GPIOA, GPIO_MODE_OUTPUT_10_MHZ,GPIO_CNF_OUTPUT_PUSHPULL,Clk2);
-    gpio_set_mode(GPIOA, GPIO_MODE_OUTPUT_10_MHZ,GPIO_CNF_OUTPUT_PUSHPULL,Clk3);
-    gpio_set_mode(GPIOA, GPIO_MODE_OUTPUT_10_MHZ,GPIO_CNF_OUTPUT_PUSHPULL,Clear);
+    gpio_set_mode(GPIOA, GPIO_MODE_OUTPUT_50_MHZ,GPIO_CNF_OUTPUT_PUSHPULL,Clk1);
+    gpio_set_mode(GPIOA, GPIO_MODE_OUTPUT_50_MHZ,GPIO_CNF_OUTPUT_PUSHPULL,Clk2);
+    gpio_set_mode(GPIOA, GPIO_MODE_OUTPUT_50_MHZ,GPIO_CNF_OUTPUT_PUSHPULL,Clk3);
+    gpio_set_mode(GPIOA, GPIO_MODE_OUTPUT_50_MHZ,GPIO_CNF_OUTPUT_PUSHPULL,Clear);
 
     gpio_set(GPIOA,Clear); // Disable Reset for enabling Adress mode
 
-    gpio_set_mode(GPIOB, GPIO_MODE_OUTPUT_10_MHZ,GPIO_CNF_OUTPUT_PUSHPULL,OE);
-    gpio_set_mode(GPIOA, GPIO_MODE_OUTPUT_10_MHZ,GPIO_CNF_OUTPUT_PUSHPULL,CE);
-    gpio_set_mode(GPIOB, GPIO_MODE_OUTPUT_10_MHZ,GPIO_CNF_OUTPUT_PUSHPULL,WE);
+    gpio_set_mode(GPIOB, GPIO_MODE_OUTPUT_50_MHZ,GPIO_CNF_OUTPUT_PUSHPULL,OE);
+    gpio_set_mode(GPIOA, GPIO_MODE_OUTPUT_50_MHZ,GPIO_CNF_OUTPUT_PUSHPULL,CE);
+    gpio_set_mode(GPIOB, GPIO_MODE_OUTPUT_50_MHZ,GPIO_CNF_OUTPUT_PUSHPULL,WE);
 
     gpio_clear(GPIOA,Clk1);
     gpio_clear(GPIOA,Clk2);
@@ -668,72 +668,58 @@ unsigned short DirectRead16()
 void SetAddress (unsigned long address)
 {
     SetData_OUTPUT();
-    gpio_set_mode(GPIOA, GPIO_MODE_OUTPUT_10_MHZ,GPIO_CNF_OUTPUT_PUSHPULL,Clear);
-    gpio_set(GPIOA,Clear); // Disable Reset for enabling Adress mode
+    GPIO_ODR(GPIOA) = GPIO_ODR(GPIOA) | (1 << 4);  // Clear 1 // Disable Reset for enabling Adress mode
     DirectWrite8(address & 0xff);
-    gpio_clear(GPIOA,Clk1);
-    gpio_set(GPIOA,Clk1);
+    GPIO_ODR(GPIOA) = GPIO_ODR(GPIOA) & ~(1 << 7); // Clk1 0
+    GPIO_ODR(GPIOA) = GPIO_ODR(GPIOA) | (1 << 7);  // Clk1 1
     DirectWrite8((address >> 8) & 0xff);
-    gpio_clear(GPIOA,Clk2);
-    gpio_set(GPIOA,Clk2);
+    GPIO_ODR(GPIOA) = GPIO_ODR(GPIOA) & ~(1 << 6); // Clk2 0
+    GPIO_ODR(GPIOA) = GPIO_ODR(GPIOA) | (1 << 6);  // Clk2 1
     DirectWrite8((address >> 16) & 0xff);
-    gpio_clear(GPIOA,Clk3);
-    gpio_set(GPIOA,Clk3);
+    GPIO_ODR(GPIOA) = GPIO_ODR(GPIOA) & ~(1 << 5); // Clk3 0
+    GPIO_ODR(GPIOA) = GPIO_ODR(GPIOA) | (1 << 5);  // Clk3 1
     SetData_Input();
 }
 
 int ReadFlash8(int address)
 {
-    SetFlashCE(1);
-    SetFlashOE(1);
+    GPIO_ODR(GPIOA) = GPIO_ODR(GPIOA) | (1 << 0);  // CE 1
+    GPIO_ODR(GPIOB) = GPIO_ODR(GPIOB) | (1 << 1);  // OE 1
     SetAddress(address);
-    delayMicroseconds(1);
-    SetFlashCE(0);
-    SetFlashOE(0);
-    delayMicroseconds(1);
+    GPIO_ODR(GPIOA) = GPIO_ODR(GPIOA) & ~(1 << 0); // CE 0
+    GPIO_ODR(GPIOB) = GPIO_ODR(GPIOB) & ~(1 << 1); // OE 0
     SetData_Input();
- //   delayMicroseconds(1);
     char result = DirectRead8();
- //   delayMicroseconds(1);
-    SetFlashCE(1);
- //   delayMicroseconds(1);
-    SetFlashOE(1);
+    GPIO_ODR(GPIOA) = GPIO_ODR(GPIOA) | (1 << 0);  // CE 1
+    GPIO_ODR(GPIOB) = GPIO_ODR(GPIOB) | (1 << 1);  // OE 1
     return result;
 }
 
 
 int ReadFlash16(int address)
 {
-    SetFlashCE(1);
-    SetFlashOE(1);
+    GPIO_ODR(GPIOA) = GPIO_ODR(GPIOA) | (1 << 0);  // CE 1
+    GPIO_ODR(GPIOB) = GPIO_ODR(GPIOB) | (1 << 1);  // OE 1
     SetAddress(address);
-    delayMicroseconds(1);
-    SetFlashCE(0);
-    SetFlashOE(0);
-    delayMicroseconds(1);
+    GPIO_ODR(GPIOA) = GPIO_ODR(GPIOA) & ~(1 << 0); // CE 0
+    GPIO_ODR(GPIOB) = GPIO_ODR(GPIOB) & ~(1 << 1); // OE 0
     SetData_Input();
-    delayMicroseconds(1);
     short result = DirectRead16();
-    delayMicroseconds(1);
-    SetFlashCE(1);
-    delayMicroseconds(1);
-    SetFlashOE(1);
+    GPIO_ODR(GPIOA) = GPIO_ODR(GPIOA) | (1 << 0);  // CE 1
+    GPIO_ODR(GPIOB) = GPIO_ODR(GPIOB) | (1 << 1);  // OE 1
     return result;
 }
 
 void writeFlash8(int address, int byte)
 {
 	SetAddress(address);
-	delayMicroseconds(1);
 	SetData_OUTPUT();
 	DirectWrite8(byte);
-	SetFlashCE(0);
-	SetFlashWE(0);
-	delayMicroseconds(1);
-	SetFlashWE(1);
-	SetFlashCE(1);
+	GPIO_ODR(GPIOA) = GPIO_ODR(GPIOA) & ~(1 << 0); // CE 0
+	GPIO_ODR(GPIOB) = GPIO_ODR(GPIOB) & ~(1 << 5); // WE 0
+	GPIO_ODR(GPIOB) = GPIO_ODR(GPIOB) | (1 << 5);  // OW 1
+	GPIO_ODR(GPIOA) = GPIO_ODR(GPIOA) | (1 << 0);  // CE 1
 	SetData_Input();
-	delayMicroseconds(1);
 }
 
 void ResetFlash(void)
@@ -891,13 +877,14 @@ int main(void)
     nvic_enable_irq(NVIC_USB_WAKEUP_IRQ);
 
     /*Setup Programming mode */
-    /* Set GPIO14 (in GPIO port C) to 'input float */
-    gpio_set_mode(GPIOC, GPIO_MODE_INPUT, GPIO_CNF_INPUT_FLOAT, GPIO14);
+    
+      /* Set GPIO14 (in GPIO port C) to 'input float */
+       gpio_set_mode(GPIOC, GPIO_MODE_INPUT, GPIO_CNF_INPUT_FLOAT, GPIO14);
     /* Set GPIO13 ( Led in GPIO port C) to 'output push-pull'. */
-    gpio_set_mode(GPIOC, GPIO_MODE_OUTPUT_10_MHZ,GPIO_CNF_OUTPUT_PUSHPULL, GPIO13);
+       gpio_set_mode(GPIOC, GPIO_MODE_OUTPUT_10_MHZ,GPIO_CNF_OUTPUT_PUSHPULL, GPIO13);
 
-    if (GPIOC_IDR & GPIO14) // if value !=0
-    {
+     if (GPIOC_IDR & GPIO14) // if value !=0
+      {
         // Turn GPIO to SW-D for Enable Programming Mode
         while (1)
         {
@@ -910,7 +897,7 @@ int main(void)
             for (i = 0; i < 800000; i++)	/* Wait a bit. */
                 __asm__("nop");
         }
-    }
+       }
 
 
     /*
