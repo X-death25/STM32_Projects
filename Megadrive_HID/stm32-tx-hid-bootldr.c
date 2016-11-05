@@ -26,7 +26,7 @@
 #include <libopencm3/cm3/scb.h>
 #include <libopencm3/usb/dfu.h>
 
-#define FORCE_BOOT	(GPIO8 | GPIO9)
+#define FORCE_BOOT	(GPIO1 | GPIO5)
 
 /* Commands sent with wBlockNum == 0 as per ST implementation. */
 #define CMD_SETADDR	0x21
