@@ -65,24 +65,24 @@ int main()
     //////////////
     
     HIDCommand[0] = WakeUP; // Select WakeUP Command
-    	rawhid_send(0,HIDCommand,64,25);
+    	rawhid_send(0,HIDCommand,64,15);
 
     	while (ReadOK !=0)
     	{
 
-    	  num = rawhid_recv(0, buf, 64,25);
+    	  num = rawhid_recv(0, buf, 64,15);
     	  		if (num < 0) {
     			printf("\nerror reading, device went offline\n");
     			rawhid_close(0);
     			return 0;
     		}
     		if (num > 0) {
-    			/*printf("\nrecu %d bytes:\n", num);
+    			printf("\nrecu %d bytes:\n", num);
     			for (i=0; i<num; i++) {
     				printf("%02X ", buf[i] & 255);
     				if (i % 16 == 15 && i < num-1) printf("\n");
     			}
-    			printf("\n\n");*/
+    			printf("\n\n");
     			ReadOK=0;
     		}
 
@@ -163,8 +163,8 @@ int main()
             HIDCommand[2]=(address & 0xFF00)>>8;
             HIDCommand[3]=(address & 0xFF0000)>>16;
             HIDCommand[4]=(address & 0xFF000000)>>24;        
-            rawhid_send(0, HIDCommand, 64, 25);
-	    rawhid_recv(0,(BufferROM+ (address*2)), 64,25);
+            rawhid_send(0, HIDCommand, 64, 15);
+	    rawhid_recv(0,(BufferROM+ (address*2)), 64,15);
           //  memcpy((unsigned char *)BufferROM+ (address*2), (unsigned char *)buf, 64);
             address +=32 ;
         }
@@ -182,7 +182,7 @@ int main()
         HIDCommand[0] = 0x0A; // Select Read in 8bit Mode
  
 
-        address=0x200001; // Start adress for Save Area
+        address=2097153; // Start adress for Save Area
         j=0;
 	BufferROM = (unsigned char*)malloc(1024*64);
 	BufferSave = (unsigned char*)malloc((1024*64));
