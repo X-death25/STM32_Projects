@@ -78,10 +78,10 @@ int main()
     		}
     		if (num > 0) {
     			printf("\nrecu %d bytes:\n", num);
-    			for (i=0; i<num; i++) {
+    			/*for (i=0; i<num; i++) {
     				printf("%02X ", buf[i] & 255);
     				if (i % 16 == 15 && i < num-1) printf("\n");
-    			}
+    			}*/
     			printf("\n\n");
     			ReadOK=0;
     		}
@@ -184,19 +184,19 @@ int main()
 
         address=2097153; // Start adress for Save Area
         j=0;
-	BufferROM = (unsigned char*)malloc(1024*64);
-	BufferSave = (unsigned char*)malloc((1024*64));
+	BufferROM = (unsigned char*)malloc(1024*128);
+	BufferSave = (unsigned char*)malloc((1024*128));
 	       // Cleaning Buffer
         
-         for (i=0; i<(1024*64); i++) 
+         for (i=0; i<(1024*128); i++) 
 	  {
 	    BufferSave[i]=0xFF;
 	    BufferROM[i]=0xFF;
 	  }
-	  rawhid_send(0, HIDCommand, 64, 12);
-	    num = rawhid_recv(0,buf, 64,12);
+	  rawhid_send(0, HIDCommand, 64, 15);
+	    num = rawhid_recv(0,buf, 64,15);
 	    address = address/2; // 8 bits read
-	while (j < (1024*64)/2 )
+	while (j < (1024*64) )
       {
 	
 	
@@ -204,15 +204,15 @@ int main()
             HIDCommand[2]=(address & 0xFF00)>>8;
             HIDCommand[3]=(address & 0xFF0000)>>16;
             HIDCommand[4]=(address & 0xFF000000)>>24;        
-            rawhid_send(0, HIDCommand, 64, 12);
-	    rawhid_recv(0,BufferROM+j, 64,12);
+            rawhid_send(0, HIDCommand, 64, 15);
+	    rawhid_recv(0,BufferROM+j, 64,15);
 	    j +=64;
 	    address +=64;
       }
 	    	   	    	
 	j=0;
 
-	   for (i=0; i<(1024*64)/2; i++) 
+	   for (i=0; i<(1024*64); i++) 
 	  {
 	    j=j+1;
 	    BufferSave[i+j]=BufferROM[i];
@@ -225,8 +225,7 @@ int main()
 	
     case 3:
         printf("Opening save file.. \n");
-	BufferSave = (unsigned char*)malloc((1024*64));
-	BufferROM =  (unsigned char*)malloc(1024*64);
+	BufferSave = (unsigned char*)malloc((1024*64)/2);
 	save=fopen("save.srm","rb");
 	if (save == NULL)
 	    {
@@ -238,23 +237,23 @@ int main()
         else
             {
 	      printf("Send save to cartridge please wait ....\n");
-	        for (i=0; i<(1024*64); i++) 
+	        for (i=0; i<(1024*64)/2; i++) 
 		{
 		  fread(&octetActuel,1,1,save); 
 		  fread(&octetActuel,1,1,save);
 		  BufferSave[i]=octetActuel; 
 		}
-		while ( j< (1024*64)/2)
+		while ( j< (1024*64)/8) // /8 OK
 		{
 		    HIDCommand[0] = 0x0D; // Select Write in 8bit Mode
 		    for (i=0; i<32; i++) 
 		      {
 		        HIDCommand[32+i]=BufferSave[i+j];			
 		      }
-		    rawhid_send(0,HIDCommand, 64, 12);
+		    rawhid_send(0,HIDCommand, 64, 15);
 		  while (buf[0] != 0xAA)
 		  {
-		    num = rawhid_recv(0,buf, 64,12);
+		    num = rawhid_recv(0,buf, 64,15);
 		  }
 		  j +=32;
 		}
@@ -269,11 +268,11 @@ int main()
 	scanf("%d");
         printf("Sending command Erase Save \n");
         HIDCommand[0] = 0x0B; // Select Erase in 8bit Mode
-        rawhid_send(0, HIDCommand, 64, 12);
+        rawhid_send(0, HIDCommand, 64, 15);
 	printf("Erasing please wait...");
 	while (buf[0] != 0xAA)
 	{
-  	   num = rawhid_recv(0,buf, 64,12);
+  	   num = rawhid_recv(0,buf, 64,15);
 	}
         printf("\nErase completed sucessfully ! \n");
 	break;
@@ -282,16 +281,16 @@ int main()
          printf("Sending command Dump SMS \n");
         printf("Dumping please wait ...\n");
 	HIDCommand[0] = 0x0A; // Select Read in 8bit Mode
-	BufferROM = (unsigned char*)malloc(1024*256);
+	BufferROM = (unsigned char*)malloc(1024*128);
 	 HIDCommand[1]=address & 0xFF;
             HIDCommand[2]=(address & 0xFF00)>>8;
             HIDCommand[3]=(address & 0xFF0000)>>16;
             HIDCommand[4]=(address & 0xFF000000)>>24;        
-            rawhid_send(0, HIDCommand, 64, 12);
-	    rawhid_recv(0,BufferROM+j, 64,12);
+            rawhid_send(0, HIDCommand, 64, 15);
+	    rawhid_recv(0,BufferROM+j, 64,15);
 	j=0;
 	
-      while (address < (1024*256))
+      while (address < (1024*128))
       {
 
 	address = address; // 8 bits read
@@ -300,13 +299,13 @@ int main()
             HIDCommand[2]=(address & 0xFF00)>>8;
             HIDCommand[3]=(address & 0xFF0000)>>16;
             HIDCommand[4]=(address & 0xFF000000)>>24;        
-            rawhid_send(0, HIDCommand, 64, 12);
-	    rawhid_recv(0,BufferROM+j, 64,12);
+            rawhid_send(0, HIDCommand, 64, 15);
+	    rawhid_recv(0,BufferROM+j, 64,15);
 	    j +=64;
 	    address +=64;
       }
         dump=fopen("dump.sms","wb");
-        fwrite(BufferROM,1,(1024*256),dump);
+        fwrite(BufferROM,1,(1024*128),dump);
 	printf("Dump SMS OK");
 	scanf("%d");
 	break;
@@ -324,8 +323,8 @@ int main()
             HIDCommand[2]=(address & 0xFF00)>>8;
             HIDCommand[3]=(address & 0xFF0000)>>16;
             HIDCommand[4]=(address & 0xFF000000)>>24;        
-            rawhid_send(0, HIDCommand, 64, 12);
-	    num = rawhid_recv(0,buf, 64,12);
+            rawhid_send(0, HIDCommand, 64, 15);
+	    num = rawhid_recv(0,buf, 64,15);
 	     if (num > 0) {
     			printf("\n\n", num);
     			for (i=0; i<num; i++) {
@@ -339,20 +338,20 @@ int main()
       case 9:
       BufferROM = (unsigned char*)malloc(1024*Gamesize);
 	HIDCommand[0] = 0x0A; // Select Read in 8bit Mode
-	  rawhid_send(0, HIDCommand, 64, 12);
-	    num = rawhid_recv(0,buf, 64,12);
+	  rawhid_send(0, HIDCommand, 64, 15);
+	    num = rawhid_recv(0,buf, 64,15);
       while (1)
       {
         printf("\n\nEnter ROM Address ( decimal value) :\n \n");
 	scanf("%ld",&address);
-	address = address; // 8 bits read
+	address = address/2; // 8 bits read
 	
 	 HIDCommand[1]=address & 0xFF;
             HIDCommand[2]=(address & 0xFF00)>>8;
             HIDCommand[3]=(address & 0xFF0000)>>16;
             HIDCommand[4]=(address & 0xFF000000)>>24;        
-            rawhid_send(0, HIDCommand, 64, 12);
-	    num = rawhid_recv(0,buf, 64,12);
+            rawhid_send(0, HIDCommand, 64, 15);
+	    num = rawhid_recv(0,buf, 64,15);
 	    
 	     if (num > 0) {
     			printf("\n\n", num);
