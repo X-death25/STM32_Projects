@@ -21,6 +21,7 @@
 #define Erase8     0x0B  // Erase8 : Erase Page (64 byte) in 8 bit mode
 #define Erase16    0x0C  // Erase16: Erase Page (64 byte) in 16 bit mode
 #define Write8     0x0D  // Write8  :Write Page (32 byte) in 8 bit mode
+#define ReadSMS    0x0E  // DumpSMS : Dump SMS cartridge
 
 int main()
 {
@@ -29,6 +30,7 @@ int main()
     int choixMenu=0;
     int ReadOK=1;
     unsigned long address=0;
+    unsigned long compteur=0;
     unsigned long i=0;
     unsigned long j=0;
     unsigned char octetActuel=0;
@@ -37,6 +39,8 @@ int main()
     unsigned char HIDCommand [64];
     unsigned char *BufferROM;
     unsigned char *BufferSave;
+    unsigned char TMSS_MD[4];
+    unsigned char TMSS_SMS[8];
     FILE *dump;
     FILE *save;
 
@@ -63,6 +67,7 @@ int main()
     //////////////
 
     HIDCommand[0] = WakeUP; // Select WakeUP Command
+    HIDCommand[6]=0xCC; // Mapper Control
     rawhid_send(0,HIDCommand,64,15);
 
     while (ReadOK !=0)
@@ -77,12 +82,12 @@ int main()
         }
         if (num > 0)
         {
-            /*printf("\nrecu %d bytes:\n", num);
+           /* printf("\nrecu %d bytes:\n", num);
             for (i=0; i<num; i++) {
             	printf("%02X ", buf[i] & 255);
             	if (i % 16 == 15 && i < num-1) printf("\n");
-            }*/
-            printf("\n");
+            }
+            printf("\n");*/
             ReadOK=0;
         }
 
@@ -92,13 +97,28 @@ int main()
     unsigned char GameName[32];
     unsigned long Gamesize=0;
     unsigned short SaveSize=0;
-
+    
+    for (i=0; i<4; i++)
+    {
+        TMSS_MD[i]=buf[51+i];
+    }
+    
+      for (i=0; i<8; i++)
+    {
+        TMSS_SMS[i]=buf[55+i];
+    } 
+    
+  if (memcmp(TMSS_MD,"SEGA",sizeof(TMSS_MD)) == 0)
+   {
+     printf("Megadrive/Genesis cartridge Detected !\n");
+   
+   
     for (i=0; i<8; i++)
     {
         ReleaseDate[i]=buf[i];
     }
 
-    for (i=0; i<32-8 ; i++)
+    for (i=0; i<32-8; i++)
     {
         GameName[i]=buf[i+8];
     }
@@ -108,8 +128,8 @@ int main()
     SaveSize = ((buf[45]) | (buf[46] << 8));
     SaveSize=(SaveSize/1024)+1;
 
-    printf("Game Name : %s \n",GameName);
-    printf("Release Date : %s \n",ReleaseDate);
+    printf("  Game Name : %s \n",GameName);
+    printf("  Release Date : %s \n",ReleaseDate);
     printf("Game Size : %ld Ko \n",Gamesize);
     if (buf[43]!=0x01)
     {
@@ -135,6 +155,17 @@ int main()
     printf("Region : %c",buf[48]);
     printf("%c",buf[49]);
     printf("%c \n\n",buf[50]);
+}
+    
+     else if (memcmp(TMSS_SMS,"TMR SEGA", sizeof(TMSS_SMS)) == 0)
+   {
+     printf("Master System/Mark3 Cartridge Detected !\n\n");
+   }
+   
+   else {
+          printf("Unknown cartridge or bad connection  ...\n ");
+	 }
+   
 
 
     printf("---Menu---\n\n");
@@ -301,32 +332,70 @@ int main()
         break;
 
     case 5:
+        printf("Enter number of Ko to dump \n");
+	scanf("%d", &Gamesize);
         printf("Sending command Dump SMS \n");
         printf("Dumping please wait ...\n");
-        HIDCommand[0] = 0x0A; // Select Read in 8bit Mode
-        BufferROM = (unsigned char*)malloc(1024*128);
+        HIDCommand[0] = 0x0E; // Select Dump SMS
+        BufferROM = (unsigned char*)malloc(1024*Gamesize);
         HIDCommand[1]=address & 0xFF;
         HIDCommand[2]=(address & 0xFF00)>>8;
         HIDCommand[3]=(address & 0xFF0000)>>16;
         HIDCommand[4]=(address & 0xFF000000)>>24;
+	HIDCommand[11]=0xCC; // Disable SMS Mapper Control	
         rawhid_send(0, HIDCommand, 64, 15);
-        rawhid_recv(0,BufferROM+j, 64,15);
-        j=0;
-
-        while (address < (1024*128))
+        rawhid_recv(0,BufferROM, 64,15);
+	
+        while (compteur < (1024*Gamesize))
         {
-            address = address; // 8 bits read
+            address = address;
+	    if (j== 0xC000) {HIDCommand[11]=0x03;HIDCommand[6]=0x03;address=0x8000;}  // Enable Bank3
+	    if (j== 0x10000) {HIDCommand[11]=0x03;HIDCommand[6]=0x04;address=0x8000;} // Enable Bank4
+	    if (j== 0x14000) {HIDCommand[11]=0x03;HIDCommand[6]=0x05;address=0x8000;} // Enable Bank5
+	    if (j== 0x18000) {HIDCommand[11]=0x03;HIDCommand[6]=0x06;address=0x8000;} // Enable Bank6
+	    if (j== 0x1C000) {HIDCommand[11]=0x03;HIDCommand[6]=0x07;address=0x8000;} // Enable Bank7
+	    
+	    if (j== 0x20000) {HIDCommand[11]=0x03;HIDCommand[6]=0x08;address=0x8000;} // Enable Bank8
+	    if (j== 0x24000) {HIDCommand[11]=0x03;HIDCommand[6]=0x09;address=0x8000;} // Enable Bank9
+	    if (j== 0x28000) {HIDCommand[11]=0x03;HIDCommand[6]=0x0A;address=0x8000;} // Enable BankA
+	    if (j== 0x2C000) {HIDCommand[11]=0x03;HIDCommand[6]=0x0B;address=0x8000;} // Enable BankB 
+	    
+	    if (j== 0x30000) {HIDCommand[11]=0x03;HIDCommand[6]=0x0C;address=0x8000;} // Enable BankC
+	    if (j== 0x34000) {HIDCommand[11]=0x03;HIDCommand[6]=0x0D;address=0x8000;} // Enable BankD
+	    if (j== 0x38000) {HIDCommand[11]=0x03;HIDCommand[6]=0x0E;address=0x8000;} // Enable BankE
+	    if (j== 0x3C000) {HIDCommand[11]=0x03;HIDCommand[6]=0x0F;address=0x8000;} // Enable BankF 
+	    
+	    if (j== 0x40000) {HIDCommand[11]=0x03;HIDCommand[6]=0x10;address=0x8000;} // Enable Bank10
+	    if (j== 0x44000) {HIDCommand[11]=0x03;HIDCommand[6]=0x11;address=0x8000;} // Enable Bank11
+	    if (j== 0x48000) {HIDCommand[11]=0x03;HIDCommand[6]=0x12;address=0x8000;} // Enable Bank12   
+	    if (j== 0x4C000) {HIDCommand[11]=0x03;HIDCommand[6]=0x13;address=0x8000;} // Enable Bank13
+	    if (j== 0x50000) {HIDCommand[11]=0x03;HIDCommand[6]=0x14;address=0x8000;} // Enable Bank14
+	    if (j== 0x54000) {HIDCommand[11]=0x03;HIDCommand[6]=0x15;address=0x8000;} // Enable Bank15	    	    
+	    if (j== 0x58000) {HIDCommand[11]=0x03;HIDCommand[6]=0x16;address=0x8000;} // Enable Bank16	    
+	    if (j== 0x5C000) {HIDCommand[11]=0x03;HIDCommand[6]=0x17;address=0x8000;} // Enable Bank17	    
+	    
+	    if (j== 0x60000) {HIDCommand[11]=0x03;HIDCommand[6]=0x18;address=0x8000;} // Enable Bank18
+	    if (j== 0x64000) {HIDCommand[11]=0x03;HIDCommand[6]=0x19;address=0x8000;} // Enable Bank19
+	    if (j== 0x68000) {HIDCommand[11]=0x03;HIDCommand[6]=0x1A;address=0x8000;} // Enable Bank20   
+	    if (j== 0x6C000) {HIDCommand[11]=0x03;HIDCommand[6]=0x1B;address=0x8000;} // Enable Bank21
+	    if (j== 0x70000) {HIDCommand[11]=0x03;HIDCommand[6]=0x1C;address=0x8000;} // Enable Bank22
+	    if (j== 0x74000) {HIDCommand[11]=0x03;HIDCommand[6]=0x1D;address=0x8000;} // Enable Bank23	    	    
+	    if (j== 0x78000) {HIDCommand[11]=0x03;HIDCommand[6]=0x1E;address=0x8000;} // Enable Bank24
+	    if (j== 0x7C000) {HIDCommand[11]=0x03;HIDCommand[6]=0x1F;address=0x8000;} // Enable Bank25
+
+	    
             HIDCommand[1]=address & 0xFF;
             HIDCommand[2]=(address & 0xFF00)>>8;
             HIDCommand[3]=(address & 0xFF0000)>>16;
             HIDCommand[4]=(address & 0xFF000000)>>24;
             rawhid_send(0, HIDCommand, 64, 15);
             rawhid_recv(0,BufferROM+j, 64,15);
-            j +=64;
+            j+=64;
             address +=64;
+	    compteur +=64;
         }
         dump=fopen("dump.sms","wb");
-        fwrite(BufferROM,1,(1024*128),dump);
+        fwrite(BufferROM,1,(1024*Gamesize),dump);
         printf("Dump SMS OK");
         scanf("%d");
         break;
@@ -366,11 +435,12 @@ int main()
         {
             printf("\n\nEnter ROM Address ( decimal value) :\n \n");
             scanf("%ld",&address);
-            address = address/2; // 8 bits read
+           // address = address/2; // 8 bits read
             HIDCommand[1]=address & 0xFF;
             HIDCommand[2]=(address & 0xFF00)>>8;
             HIDCommand[3]=(address & 0xFF0000)>>16;
             HIDCommand[4]=(address & 0xFF000000)>>24;
+	    
             rawhid_send(0, HIDCommand, 64, 15);
             num = rawhid_recv(0,buf, 64,15);
             if (num > 0)
@@ -387,6 +457,7 @@ int main()
 
     default:
         printf("Nice try bye ;)");
+	scanf("%d");
     }
 }
 
