@@ -54,7 +54,7 @@ static uint32_t adress=0;
 
 static uint8_t hid_interrupt=0;
 
-// HID Special Command 
+// HID Special Command
 
 #define ReadBuffer     0x08  // Read HID Buffer
 #define ReadPage       0x09  // Read Page
@@ -273,9 +273,9 @@ static void hid_set_config(usbd_device *dev, uint16_t wValue)
         USB_REQ_TYPE_CLASS | USB_REQ_TYPE_INTERFACE,
         USB_REQ_TYPE_TYPE | USB_REQ_TYPE_RECIPIENT,
         dfu_control_request);
-    
+
     //systick configuration
-    
+
     /* 72MHz / 8 => 9000000 counts per second : 9 Mhz */
     systick_set_clocksource(STK_CSR_CLKSOURCE_AHB_DIV8);
     // Systick interrupt period 1ms -> 9MHz / 1kHz = 9000
@@ -314,7 +314,8 @@ static char *get_dev_unique_id(char *s)
     return s;
 }
 
-void wait(){
+void wait()
+{
     for(unsigned char tmp=0; tmp<4; tmp++) __asm__("nop"); //wait ~1,5us
 }
 
@@ -370,17 +371,17 @@ void Init_Memory(void)
 void SetData_Input(void)
 {
     /* Directy write Register is faster than call gpio set_mode ( see STM Reference manual P166)
-     * CRL & CRH is 32 bit register Low for 0..7 High for 8..15 
-     CNF = 01 for Input Float  & MODE = 00 for INPUT Mode -*/ 
-    
-      GPIO_CRL(GPIOA) = 0x66666666;
-      GPIO_CRH(GPIOA) = 0x44446444;
-      GPIO_CRL(GPIOB) = 0x44144414;
-      GPIO_CRH(GPIOB) = 0x44444444;
+     * CRL & CRH is 32 bit register Low for 0..7 High for 8..15
+     CNF = 01 for Input Float  & MODE = 00 for INPUT Mode -*/
+
+    GPIO_CRL(GPIOA) = 0x66666666;
+    GPIO_CRH(GPIOA) = 0x44446444;
+    GPIO_CRL(GPIOB) = 0x44144414;
+    GPIO_CRH(GPIOB) = 0x44444444;
 }
 
 void SetData_OUTPUT(void)
-{ 
+{
     GPIO_CRL(GPIOA) = 0x66666663;
     GPIO_CRH(GPIOA) = 0x34446366;
     GPIO_CRL(GPIOB) = 0x33333333;
@@ -427,9 +428,9 @@ void SetFlashWE(unsigned char state)
 void DirectWrite8(unsigned char val)
 {
 
- if(val&1)
+    if(val&1)
     {
-       GPIO_ODR(GPIOB) = GPIO_ODR(GPIOB) | (1 << 9); 
+        GPIO_ODR(GPIOB) = GPIO_ODR(GPIOB) | (1 << 9);
     }
     else
     {
@@ -437,7 +438,7 @@ void DirectWrite8(unsigned char val)
     }
     if((val>>1)&1)
     {
-        GPIO_ODR(GPIOB) = GPIO_ODR(GPIOB) | (1 << 8); 
+        GPIO_ODR(GPIOB) = GPIO_ODR(GPIOB) | (1 << 8);
     }
     else
     {
@@ -445,7 +446,7 @@ void DirectWrite8(unsigned char val)
     }
     if((val>>2)&1)
     {
-         GPIO_ODR(GPIOB) = GPIO_ODR(GPIOB) | (1 << 7); 
+        GPIO_ODR(GPIOB) = GPIO_ODR(GPIOB) | (1 << 7);
     }
     else
     {
@@ -453,15 +454,15 @@ void DirectWrite8(unsigned char val)
     }
     if((val>>3)&1)
     {
-        GPIO_ODR(GPIOB) = GPIO_ODR(GPIOB) | (1 << 6); 
+        GPIO_ODR(GPIOB) = GPIO_ODR(GPIOB) | (1 << 6);
     }
     else
     {
-         GPIO_ODR(GPIOB) = GPIO_ODR(GPIOB) & ~(1 << 6);
+        GPIO_ODR(GPIOB) = GPIO_ODR(GPIOB) & ~(1 << 6);
     }
     if((val>>4)&1)
     {
-        GPIO_ODR(GPIOB) = GPIO_ODR(GPIOB) | (1 << 4); 
+        GPIO_ODR(GPIOB) = GPIO_ODR(GPIOB) | (1 << 4);
     }
     else
     {
@@ -473,7 +474,7 @@ void DirectWrite8(unsigned char val)
     }
     else
     {
-         GPIO_ODR(GPIOB) = GPIO_ODR(GPIOB) & ~(1 << 3);
+        GPIO_ODR(GPIOB) = GPIO_ODR(GPIOB) & ~(1 << 3);
     }
     if((val>>6)&1)
     {
@@ -638,7 +639,7 @@ unsigned char DirectRead8()
     if (GPIOA_IDR & D6) result |= 64;
     if (GPIOA_IDR & D7) result |= 128;
     return result;
- 
+
 }
 
 unsigned int DirectRead16()
@@ -716,14 +717,14 @@ unsigned int ReadFlash16(unsigned long address)
 
 void writeFlash8(int address, int byte)
 {
-	SetAddress(address);
-	SetData_OUTPUT();
-	DirectWrite8(byte);
-	GPIO_ODR(GPIOA) = GPIO_ODR(GPIOA) & ~(1 << 0); // CE 0
-	GPIO_ODR(GPIOB) = GPIO_ODR(GPIOB) & ~(1 << 5); // WE 0
-	GPIO_ODR(GPIOB) = GPIO_ODR(GPIOB) | (1 << 5);  // OW 1
-	GPIO_ODR(GPIOA) = GPIO_ODR(GPIOA) | (1 << 0);  // CE 1
-	SetData_Input();
+    SetAddress(address);
+    SetData_OUTPUT();
+    DirectWrite8(byte);
+    GPIO_ODR(GPIOA) = GPIO_ODR(GPIOA) & ~(1 << 0); // CE 0
+    GPIO_ODR(GPIOB) = GPIO_ODR(GPIOB) & ~(1 << 5); // WE 0
+    GPIO_ODR(GPIOB) = GPIO_ODR(GPIOB) | (1 << 5);  // OW 1
+    GPIO_ODR(GPIOA) = GPIO_ODR(GPIOA) | (1 << 0);  // CE 1
+    SetData_Input();
 }
 
 void ResetFlash(void)
@@ -750,10 +751,10 @@ void EraseFlash()
     writeFlash8(0x5555, 0xAA);
     writeFlash8(0x2AAA, 0x55);
     writeFlash8(0x5555, 0x10);
-    
+
 }
 
-void ByteProgramFlash(int adress , int byte)
+void ByteProgramFlash(int adress, int byte)
 {
     writeFlash8(0x5555,0xAA);
     writeFlash8(0x2AAA,0x55);
@@ -766,78 +767,106 @@ void ByteProgramFlash(int adress , int byte)
 
 void ReadMDHeader(void)
 {
-  // Clean buffer
-  
-  temp_buffer[0]=0;
-  /*
-   for(unsigned char i = 0; i < 32; i++)
-     {
-        unsigned int read16 = ReadFlash16(i); //on le lit une seule fois
-//header_buffer[(i*2)] = (read16 >> 8) & 0xFF;
-header_buffer[(i*2)] = (read16 & 0xFF00) >> 8;
-header_buffer[(i*2)+1] = read16 & 0xFF;
-       
-    }*/
+    // Clean buffer
 
-        for (unsigned int i = 0; i < 64; i++)
-	         {
-		   header_buffer[i]=ReadFlash8(i);
-		   header_buffer[i]=ReadFlash8(i);
-	         }
- 
-      
+    temp_buffer[0]=0;
+    /*
      for(unsigned char i = 0; i < 32; i++)
-     {
+       {
+          unsigned int read16 = ReadFlash16(i); //on le lit une seule fois
+    //header_buffer[(i*2)] = (read16 >> 8) & 0xFF;
+    header_buffer[(i*2)] = (read16 & 0xFF00) >> 8;
+    header_buffer[(i*2)+1] = read16 & 0xFF;
+
+      }*/
+
+
+    for(unsigned char i = 0; i < 32; i++)
+    {
         unsigned int read16 = ReadFlash16(i+128); //on le lit une seule fois
-       temp_buffer[(i*2)+1] = read16 & 0xFF;
-       temp_buffer[(i*2)] = (read16 >> 8) & 0xFF;
+        temp_buffer[(i*2)+1] = read16 & 0xFF;
+        temp_buffer[(i*2)] = (read16 >> 8) & 0xFF;
     }
-    
+
+    // // Write TMSS for SMD
+
+    for (unsigned int i = 0; i < 4; i++)
+    {
+        header_buffer[i+51]=temp_buffer[i];
+    }
+
+
     // Write Release Date
-    
-      for (unsigned int i = 0; i < 8; i++)
+
+    for (unsigned int i = 0; i < 8; i++)
     {
         header_buffer[i]=temp_buffer[24+i];
     }
-    
+
     // Write Name
-    
-      for (unsigned int i = 0; i < 32; i++)
+
+    for (unsigned int i = 0; i < 32; i++)
     {
         header_buffer[i+8]=temp_buffer[32+i];
     }
-    
-      for(unsigned char i = 0; i < 32; i++)
-     {
+
+    for(unsigned char i = 0; i < 32; i++)
+    {
         unsigned int read16 = ReadFlash16(i+208); //on le lit une seule fois
-       temp_buffer[(i*2)+1] = read16 & 0xFF;
-       temp_buffer[(i*2)] = (read16 >> 8) & 0xFF;
+        temp_buffer[(i*2)+1] = read16 & 0xFF;
+        temp_buffer[(i*2)] = (read16 >> 8) & 0xFF;
     }
-    
+
     // Write Game Size
-    
+
     header_buffer[40]=temp_buffer[5];
     header_buffer[41]=temp_buffer[6];
     header_buffer[42]=temp_buffer[7];
-    
-     // Write Save info
-    
+
+    // Write Save info
+
     header_buffer[43]=temp_buffer[23]; // Save Support
     header_buffer[44]=temp_buffer[18]; // Save Type
     header_buffer[45]=temp_buffer[26]; // Save Size
     header_buffer[46]=temp_buffer[27];
-   
-   for(unsigned char i = 0; i < 32; i++)
-     {
+
+    for(unsigned char i = 0; i < 32; i++)
+    {
         unsigned int read16 = ReadFlash16(i+224); //on le lit une seule fois
-       temp_buffer[(i*2)+1] = read16 & 0xFF;
-       temp_buffer[(i*2)] = (read16 >> 8) & 0xFF;
+        temp_buffer[(i*2)+1] = read16 & 0xFF;
+        temp_buffer[(i*2)] = (read16 >> 8) & 0xFF;
     }
-    
+
     header_buffer[48]=temp_buffer[48];
     header_buffer[49]=temp_buffer[49];
     header_buffer[50]=temp_buffer[50];
-         
+
+    for(unsigned char i = 0; i < 4; i++)
+    {
+        unsigned int read16 = ReadFlash16(i+128); //on le lit une seule fois
+        temp_buffer[(i*2)+1] = read16 & 0xFF;
+        temp_buffer[(i*2)] = (read16 >> 8) & 0xFF;
+    }
+
+    // Write TMSS for SMS
+
+    for (unsigned int i = 0; i < 8; i++)
+    {
+        header_buffer[i+55]=ReadFlash8(32752+i);
+        header_buffer[i+55]=ReadFlash8(32752+i);
+    }
+  /*  
+     // Init SMS Mapper
+	
+	       gpio_clear(GPIOC,Sram_WE);
+	       SetAddress(0xFFFC);SetData_OUTPUT();DirectWrite8(0x00);
+	       SetAddress(0xFFFD);SetData_OUTPUT();DirectWrite8(0x00);
+	       SetAddress(0xFFFE);SetData_OUTPUT();DirectWrite8(0x01);
+	       SetAddress(0xFFFF);SetData_OUTPUT();DirectWrite8(0x02);
+	       gpio_set(GPIOC,Sram_WE);
+	       SetData_Input();*/
+	  
+
 }
 
 
@@ -878,35 +907,40 @@ void usb_wakeup_isr(void)
 
 void sys_tick_handler(void)
 {
-  if (hid_interrupt ==1)
-  {
-     usbd_ep_read_packet(usbd_dev,0x01,hid_buffer_IN,sizeof(hid_buffer_IN));
-     
-      	      if (hid_buffer_IN[0] == 0x08 ) // HID Command Send MD Header
-	      {
-		hid_interrupt = 0x08;
-	      }
-	      
-	      if (hid_buffer_IN[0] == 0x09  ) // HID Command Read16
-	      {
-                hid_interrupt = 0x09;
-	      }
-	      
-	      if (hid_buffer_IN[0] == 0x0A  ) // HID Command Read8
-	      {
-                hid_interrupt = 0x0A;
-	      }
-	      
-	      if (hid_buffer_IN[0] == 0x0B  ) // HID Command Erase8
-	      {
-                hid_interrupt = 0x0B;
-	      }
-	      
-	      if (hid_buffer_IN[0] == 0x0D  ) // HID Command Write8
-	      {
-                hid_interrupt = 0x0D;	
-	      }	      
-  }
+    if (hid_interrupt ==1)
+    {
+        usbd_ep_read_packet(usbd_dev,0x01,hid_buffer_IN,sizeof(hid_buffer_IN));
+
+        if (hid_buffer_IN[0] == 0x08 ) // HID Command Send MD Header
+        {
+            hid_interrupt = 0x08;
+        }
+
+        if (hid_buffer_IN[0] == 0x09  ) // HID Command Read16
+        {
+            hid_interrupt = 0x09;
+        }
+
+        if (hid_buffer_IN[0] == 0x0A  ) // HID Command Read8
+        {
+            hid_interrupt = 0x0A;
+        }
+
+        if (hid_buffer_IN[0] == 0x0B  ) // HID Command Erase8
+        {
+            hid_interrupt = 0x0B;
+        }
+
+        if (hid_buffer_IN[0] == 0x0D  ) // HID Command Write8
+        {
+            hid_interrupt = 0x0D;
+        }
+        
+        if (hid_buffer_IN[0] == 0x0E  ) // HID Command DumpSMS
+        {
+            hid_interrupt = 0x0E;
+        }
+    }
 
 }
 
@@ -928,14 +962,14 @@ int main(void)
     nvic_enable_irq(NVIC_USB_WAKEUP_IRQ);
 
     /*Setup Programming mode */
-    
-      /* Set GPIO14 (in GPIO port C) to 'input float */
-       gpio_set_mode(GPIOC, GPIO_MODE_INPUT, GPIO_CNF_INPUT_FLOAT, GPIO14);
-    /* Set GPIO13 ( Led in GPIO port C) to 'output push-pull'. */
-       gpio_set_mode(GPIOC, GPIO_MODE_OUTPUT_10_MHZ,GPIO_CNF_OUTPUT_PUSHPULL, GPIO13);
 
-     if (GPIOC_IDR & GPIO14) // if value !=0
-      {
+    /* Set GPIO14 (in GPIO port C) to 'input float */
+    gpio_set_mode(GPIOC, GPIO_MODE_INPUT, GPIO_CNF_INPUT_FLOAT, GPIO14);
+    /* Set GPIO13 ( Led in GPIO port C) to 'output push-pull'. */
+    gpio_set_mode(GPIOC, GPIO_MODE_OUTPUT_10_MHZ,GPIO_CNF_OUTPUT_PUSHPULL, GPIO13);
+
+    if (GPIOC_IDR & GPIO14) // if value !=0
+    {
         // Turn GPIO to SW-D for Enable Programming Mode
         while (1)
         {
@@ -948,7 +982,7 @@ int main(void)
             for (i = 0; i < 800000; i++)	/* Wait a bit. */
                 __asm__("nop");
         }
-       }
+    }
 
 
     /*
@@ -975,49 +1009,49 @@ int main(void)
     {
         hid_buffer_OUT[i]=0x00;
     }
-    
-  
+
+
     gpio_setup();  // if we are not in programming mode we can acess Full GPIO
     Init_Memory();
     gpio_set(GPIOC, GPIO13); /* LED /off */
-    ReadMDHeader(); // Read some cool stuff 
+    ReadMDHeader(); // Read some cool stuff
     hid_interrupt=1; // Enable HID Interrupt
 
     while(1)
     {
         usbd_poll(usbd_dev);
-	
-          if (hid_interrupt == 0x08)  // Send MD Header
+
+        if (hid_interrupt == 0x08)  // Send MD Header
+        {
+            hid_interrupt=0; // Disable HID Interrupt
+            usbd_ep_write_packet(usbd_dev, 0x81,header_buffer, sizeof(header_buffer));
+            hid_buffer_IN[0]=0;
+            hid_interrupt=1; // Enable HID Interrupt
+        }
+
+        if (hid_interrupt == 0x09)  // Read Page 16 bit mode
+        {
+            hid_interrupt=0;  // Disable HID Interrupt
+            adress = hid_buffer_IN[1] |  (hid_buffer_IN[2] << 8 ) |  (hid_buffer_IN[3]<< 16) | (hid_buffer_IN[4]  << 24 );
+
+            for(unsigned char i = 0; i < 32; i++)
+            {
+                unsigned int read16 = ReadFlash16(adress+i); //on le lit une seule fois
+                hid_buffer_OUT[(i*2)+1] = read16 & 0xFF;
+                hid_buffer_OUT[(i*2)] = (read16 >> 8) & 0xFF;
+                hid_buffer_OUT[(i*2)+1] = read16 & 0xFF;
+                hid_buffer_OUT[(i*2)] = (read16 >> 8) & 0xFF;
+            }
+
+
+            usbd_ep_write_packet(usbd_dev, 0x81,hid_buffer_OUT, sizeof(hid_buffer_OUT));
+            hid_buffer_IN[0]=0;
+            hid_interrupt=1; // Enable HID Interrupt
+        }
+
+         if (hid_interrupt == 0x0A)   // Read Page 8 bit mode
 	  {
-	    	hid_interrupt=0; // Disable HID Interrupt	    
-		usbd_ep_write_packet(usbd_dev, 0x81,header_buffer, sizeof(header_buffer));
-		hid_buffer_IN[0]=0; 
-	        hid_interrupt=1; // Enable HID Interrupt
-	  }
-	
-	  if (hid_interrupt == 0x09)  // Read Page 16 bit mode
-	  {
-	     hid_interrupt=0;  // Disable HID Interrupt
-	     adress = hid_buffer_IN[1] |  (hid_buffer_IN[2] << 8 ) |  (hid_buffer_IN[3]<< 16) | (hid_buffer_IN[4]  << 24 );
-	         
-			       for(unsigned char i = 0; i < 32; i++)
-			{
-			  unsigned int read16 = ReadFlash16(adress+i); //on le lit une seule fois
-			  hid_buffer_OUT[(i*2)+1] = read16 & 0xFF;
-			  hid_buffer_OUT[(i*2)] = (read16 >> 8) & 0xFF;
-			  hid_buffer_OUT[(i*2)+1] = read16 & 0xFF;
-			  hid_buffer_OUT[(i*2)] = (read16 >> 8) & 0xFF;
-			  }
-	             
-	         
-	     usbd_ep_write_packet(usbd_dev, 0x81,hid_buffer_OUT, sizeof(hid_buffer_OUT));
-	     hid_buffer_IN[0]=0; 
-	     hid_interrupt=1; // Enable HID Interrupt
-	  }
-	  
-	    if (hid_interrupt == 0x0A)   // Read Page 8 bit mode
-	  {
-	     hid_interrupt=0;  // Disable HID Interrupt
+	     hid_interrupt=0;  // Disable HID Interrupt     
 	     gpio_set(GPIOC,Sram_WE); // Disable SRAM Write
 	       DirectWrite8(0x01); // D0 must be SET before access TIME
 	     gpio_clear(GPIOA,Time); // Enable Bankswitch with TIME
@@ -1031,9 +1065,10 @@ int main(void)
 	     hid_buffer_IN[0]=0;
 	     gpio_set(GPIOA,Time); // Disable Bankswitch
 	     hid_interrupt=1; // Enable HID Interrupt
+
 	  }
-	  
-	  if (hid_interrupt == 0x0B)   // Erase Page 8 bit mode
+
+     if (hid_interrupt == 0x0B)   // Erase Page 8 bit mode
 	  {
 	     hid_interrupt=0;  // Disable HID Interrupt
 	     gpio_clear(GPIOC,Sram_WE); // Enable SRAM Write
@@ -1050,8 +1085,8 @@ int main(void)
 	     hid_buffer_IN[0]=0; 
 	     hid_interrupt=1; // Enable HID Interrupt
 	  }
-	  
-	  if (hid_interrupt == 0x0D)   // Write Page 8 bit mode
+
+       if (hid_interrupt == 0x0D)   // Write Page 8 bit mode
 	  {
 	     hid_interrupt=0;  // Disable HID Interrupt
 	     gpio_clear(GPIOC,Sram_WE); // Enable SRAM Write
@@ -1070,8 +1105,33 @@ int main(void)
 	     hid_interrupt=1; // Enable HID Interrupt	
 	  }
 	  
-	  			  
-	//  else{usbd_poll(usbd_dev);} 
+	  if (hid_interrupt == 0x0E)   // Dump SMS Cartridge
+	  {
+	     hid_interrupt=0;  // Disable HID Interrupt
+	     adress = hid_buffer_IN[1] |  (hid_buffer_IN[2] << 8 ) |  (hid_buffer_IN[3]<< 16) | (hid_buffer_IN[4]  << 24 );
+
+	     if (hid_buffer_IN[11] != 0xCC) // Enable Mapper Control
+	     {
+	      gpio_clear(GPIOC, GPIO13); /* LED /off */ 
+             gpio_clear(GPIOC,Sram_WE);
+	     SetAddress(0xFFFF);
+	      SetData_OUTPUT();
+	      DirectWrite8(hid_buffer_IN[6]);
+	    gpio_set(GPIOC,Sram_WE);
+	     }	    
+	       for (unsigned int i = 0; i < 64; i++)
+	         {
+		   hid_buffer_OUT[i]=ReadFlash8(adress+i);
+		   hid_buffer_OUT[i]=ReadFlash8(adress+i);
+	         }
+	    
+	     usbd_ep_write_packet(usbd_dev, 0x81,hid_buffer_OUT, sizeof(hid_buffer_OUT));
+	     hid_buffer_IN[0]=0;
+	     hid_interrupt=1; // Enable HID Interrupt
+	  }
+
+
+        //  else{usbd_poll(usbd_dev);}
     }
 
 
