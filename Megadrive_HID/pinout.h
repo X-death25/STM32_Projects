@@ -30,7 +30,7 @@
 #define Time GPIO3  //PA3
 #define Asel GPIO2  //PA2
 #define Mark3 GPIO1  //PA1
-#define Sram_CE GPIO15  //PC15
+#define Sram_WE GPIO15  //PC15
 
 #define LED_PIN GPIO13 //PC13
 #define NSRST_PIN	GPIO0
