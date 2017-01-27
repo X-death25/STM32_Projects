@@ -1,0 +1,47 @@
+MD_Dumper
+------------
+
+This project is a very low cost USB Reader for Sega Megadrive Cartridge.
+HID code is based on libopencm3 ARM Lib & paulfertser/stm32-tx-hid ( https://github.com/paulfertser/stm32-tx-hid)
+
+ * Support Sega Megadrive cartridge dump ( max size is 64MB)
+ * Support Read & Write save ( 8/32Kb + Bankswitch)
+ * Support Sega MasterSystem/Mark3 cartridge dump ( max size is 4MB)
+
+This firmware is targetting the cheapest STM32F103 board as found in
+numerous listings on eBay and Aliexpress (might have the following
+keywords: ARM STM32F103C8T6 Minimum System Development Board Module
+For Arduino).
+
+* Board description
+The board has an STM32F103C8T6 controller for USB communication ( SEGA Cart <> PC) & 5V IO
+It uses three 74LS273 for multiplexing IO DATA lines into 22 address lines.
+Theorical max size is 128MB but Megadrive max without bankswitch is 64 MB.
+I use 5V Tolerant pin for DATA and other for extra pins ( Backup Memory Control / Bankswitch / SMS PIN)
+
+Finally you could also use the official ( or the Tototek) SMS/Mark3 Adaptater for Dumping SMS Cartridge
+
+* Building the firmware
+After cloning the repository "git submodule init; git submodule
+update" needs to be run once, then "build.sh" to build everything
+necessary.
+
+It is assumed that "arm-none-eabi" toolchain is available in PATH,
+"GCC ARM Embedded" is the recommended option. In case you need to
+specify a path, CROSS_COMPILE make variable should be set
+appropriately.
+
+* Initial flashing procedure
+There're two ways of flashing a blank board: via SWD and via serial
+bootloader. For the first method a suitable debug adapter is needed
+(e.g. ST-Link or J-Link), for the second one can use just about any
+USB-UART bridge (the only requirement that is a bit unusual is to
+support "even" parity).
+
+The image to be flashed is "megadrive-hid-bootldr-combined.bin", it
+contains both a DFU-compliant bootloader and the main firmware. 
+
+If you have any suggestions or questions, feel free to contact me
+directly via email.
+
+X-death <x-death@ultimate-consoles.com>
