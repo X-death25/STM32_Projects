@@ -13,11 +13,11 @@
  * along with this program.  If not, see
  * <http://www.gnu.org/licenses/>.
 
-/**
+ *
  *  \file Megadrive-hid.C
  *  \brief ARM code for the STM32 part of MD_Dumper
  *  \author X-death for Ultimate-Consoles forum ( http://www.ultimate-consoles.fr/index)
- *  \date 01/2017
+ *  \created on 01/2017
  *
  * USB HID code is based on libopencm3 & paulfertser/stm32-tx-hid ( https://github.com/paulfertser/stm32-tx-hid)
  * i have added OUT endpoint for bi-directionnal communication and some modification in the descriptor
@@ -47,9 +47,7 @@
 #include <libopencm3/cm3/nvic.h>
 #include <libopencmsis/core_cm3.h>
 
-
-/*  Include Personal Functions
- */
+//  Include Personal Functions
 
 #include "pinout.h"
 
@@ -62,10 +60,12 @@ static uint8_t hid_buffer_OUT[64];
 
 static uint8_t header_buffer[64];
 static uint8_t temp_buffer[64];
+//static uint16_t cfi_buffer[32];
 
 static uint32_t adress=0;
 
 static uint8_t hid_interrupt=0;
+unsigned short word16=0;
 
 // HID Special Command
 
@@ -397,9 +397,10 @@ void SetData_Input(void)
 void SetData_OUTPUT(void)
 {
     GPIO_CRL(GPIOA) = 0x66663663;
-    GPIO_CRH(GPIOA) = 0x34446366;
+    GPIO_CRH(GPIOA) = 0x34446333;
     GPIO_CRL(GPIOB) = 0x33333333;
     GPIO_CRH(GPIOB) = 0x33333333;
+    //  gpio_set_mode(GPIOA, GPIO_MODE_OUTPUT_50_MHZ,GPIO_CNF_OUTPUT_PUSHPULL,D8|D9);
 }
 
 void SetFlashCE(unsigned char state)
@@ -513,131 +514,131 @@ void DirectWrite16(unsigned short val)
 {
     if(val&1)
     {
-        gpio_set(GPIOB,D0);
+        GPIO_ODR(GPIOB) = GPIO_ODR(GPIOB) | (1 << 9);
     }
     else
     {
-        gpio_clear(GPIOB,D0);
+        GPIO_ODR(GPIOB) = GPIO_ODR(GPIOB) & ~(1 << 9);
     }
     if((val>>1)&1)
     {
-        gpio_set(GPIOB,D1);
+        GPIO_ODR(GPIOB) = GPIO_ODR(GPIOB) | (1 << 8);
     }
     else
     {
-        gpio_clear(GPIOB,D1);
+        GPIO_ODR(GPIOB) = GPIO_ODR(GPIOB) & ~(1 << 8);
     }
     if((val>>2)&1)
     {
-        gpio_set(GPIOB,D2);
+        GPIO_ODR(GPIOB) = GPIO_ODR(GPIOB) | (1 << 7);
     }
     else
     {
-        gpio_clear(GPIOB,D2);
+        GPIO_ODR(GPIOB) = GPIO_ODR(GPIOB) & ~(1 << 7);
     }
     if((val>>3)&1)
     {
-        gpio_set(GPIOB,D3);
+        GPIO_ODR(GPIOB) = GPIO_ODR(GPIOB) | (1 << 6);
     }
     else
     {
-        gpio_clear(GPIOB,D3);
+        GPIO_ODR(GPIOB) = GPIO_ODR(GPIOB) & ~(1 << 6);
     }
     if((val>>4)&1)
     {
-        gpio_set(GPIOB,D4);
+        GPIO_ODR(GPIOB) = GPIO_ODR(GPIOB) | (1 << 4);
     }
     else
     {
-        gpio_clear(GPIOB,D4);
+        GPIO_ODR(GPIOB) = GPIO_ODR(GPIOB) & ~(1 << 4);
     }
     if((val>>5)&1)
     {
-        gpio_set(GPIOB,D5);
+        GPIO_ODR(GPIOB) = GPIO_ODR(GPIOB) | (1 << 3);
     }
     else
     {
-        gpio_clear(GPIOB,D5);
+        GPIO_ODR(GPIOB) = GPIO_ODR(GPIOB) & ~(1 << 3);
     }
     if((val>>6)&1)
     {
-        gpio_set(GPIOA,D6);
+        GPIO_ODR(GPIOA) = GPIO_ODR(GPIOA) | (1 << 15);
     }
     else
     {
-        gpio_clear(GPIOA,D6);
+        GPIO_ODR(GPIOA) = GPIO_ODR(GPIOA) & ~(1 << 15);
     }
     if((val>>7)&1)
     {
-        gpio_set(GPIOA,D7);
+        GPIO_ODR(GPIOA) = GPIO_ODR(GPIOA) | (1 << 10);
     }
     else
     {
-        gpio_clear(GPIOA,D7);
+        GPIO_ODR(GPIOA) = GPIO_ODR(GPIOA) & ~(1 << 10);
     }
     if((val>>8)&1)
     {
-        gpio_set(GPIOA,D8);
+        GPIO_ODR(GPIOA) = GPIO_ODR(GPIOA) | (1 << 9);
     }
     else
     {
-        gpio_clear(GPIOA,D8);
+        GPIO_ODR(GPIOA) = GPIO_ODR(GPIOA) & ~(1 << 9);
     }
     if((val>>9)&1)
     {
-        gpio_set(GPIOA,D9);
+        GPIO_ODR(GPIOA) = GPIO_ODR(GPIOA) | (1 << 8);
     }
     else
     {
-        gpio_clear(GPIOA,D9);
+        GPIO_ODR(GPIOA) = GPIO_ODR(GPIOA) & ~(1 << 8);
     }
     if((val>>10)&1)
     {
-        gpio_set(GPIOB,D10);
+        GPIO_ODR(GPIOB) = GPIO_ODR(GPIOB) | (1 << 15);
     }
     else
     {
-        gpio_clear(GPIOB,D10);
+        GPIO_ODR(GPIOB) = GPIO_ODR(GPIOB) & ~(1 << 15);
     }
     if((val>>11)&1)
     {
-        gpio_set(GPIOB,D11);
+        GPIO_ODR(GPIOB) = GPIO_ODR(GPIOB) | (1 << 14);
     }
     else
     {
-        gpio_clear(GPIOB,D11);
+        GPIO_ODR(GPIOB) = GPIO_ODR(GPIOB) & ~(1 << 14);
     }
     if((val>>12)&1)
     {
-        gpio_set(GPIOB,D12);
+        GPIO_ODR(GPIOB) = GPIO_ODR(GPIOB) | (1 << 13);
     }
     else
     {
-        gpio_clear(GPIOB,D12);
+        GPIO_ODR(GPIOB) = GPIO_ODR(GPIOB) & ~(1 << 13);
     }
     if((val>>13)&1)
     {
-        gpio_set(GPIOB,D13);
+        GPIO_ODR(GPIOB) = GPIO_ODR(GPIOB) | (1 << 12);
     }
     else
     {
-        gpio_clear(GPIOB,D13);
+        GPIO_ODR(GPIOB) = GPIO_ODR(GPIOB) & ~(1 << 12);
     }
     if((val>>14)&1)
     {
-        gpio_set(GPIOB,D14);
+        GPIO_ODR(GPIOB) = GPIO_ODR(GPIOB) | (1 << 11);
     }
     else
     {
-        gpio_clear(GPIOB,D14);
+        GPIO_ODR(GPIOB) = GPIO_ODR(GPIOB) & ~(1 << 11);
     }
     if((val>>15)&1)
     {
-        gpio_set(GPIOB,D15);
+        GPIO_ODR(GPIOB) = GPIO_ODR(GPIOB) | (1 << 10);
     }
     else
     {
-        gpio_clear(GPIOB,D15);
+        GPIO_ODR(GPIOB) = GPIO_ODR(GPIOB) & ~(1 << 10);
     }
 }
 
@@ -736,35 +737,79 @@ void writeFlash8(int address, int byte)
     DirectWrite8(byte);
     GPIO_ODR(GPIOA) = GPIO_ODR(GPIOA) & ~(1 << 0); // CE 0
     GPIO_ODR(GPIOB) = GPIO_ODR(GPIOB) & ~(1 << 5); // WE 0
-    GPIO_ODR(GPIOB) = GPIO_ODR(GPIOB) | (1 << 5);  // OW 1
+    GPIO_ODR(GPIOB) = GPIO_ODR(GPIOB) | (1 << 5);  // WE 1
     GPIO_ODR(GPIOA) = GPIO_ODR(GPIOA) | (1 << 0);  // CE 1
     SetData_Input();
 }
 
-void ResetFlash(void)
+void writeCFI8(int address, int byte)
 {
-    writeFlash8(0x5555,0xAA);
-    writeFlash8(0x2AAA,0x55);
-    writeFlash8(0x5555,0xF0);
+    GPIO_ODR(GPIOA) = GPIO_ODR(GPIOA) & ~(2 << 0); // WE 0 ( ASEL> WE Flash)
+    SetAddress(address);
+    wait();
+    GPIO_ODR(GPIOB) = GPIO_ODR(GPIOB) | (1 << 1);  // OE 1
+    GPIO_ODR(GPIOA) = GPIO_ODR(GPIOA) & ~(1 << 0); // CE 0
+    wait();
+    SetData_OUTPUT();
+    DirectWrite8(byte);
+    wait();
+    GPIO_ODR(GPIOA) = GPIO_ODR(GPIOA) | (2 << 0);  // WE 1 ( ASEL> WE Flash)
+    GPIO_ODR(GPIOA) = GPIO_ODR(GPIOA) | (1 << 0);  // CE 1
+    wait();
+    SetData_Input();
 }
 
-void ReadFlashID (void)
-
+void writeFlash16(int address,unsigned short word)
 {
-    writeFlash8(0x5555,0xAA);
-    writeFlash8(0x2AAA,0x55);
-    writeFlash8(0x5555,0x90);
+    GPIO_ODR(GPIOA) = GPIO_ODR(GPIOA) & ~(2 << 0); // WE 0 ( ASEL> WE Flash)
+    SetAddress(address);
+    SetData_OUTPUT();
+    GPIO_ODR(GPIOA) = GPIO_ODR(GPIOA) & ~(1 << 0); // CE 0
+    GPIO_ODR(GPIOB) = GPIO_ODR(GPIOB) | (1 << 1);  // OE 1
+    DirectWrite16(word);
+    GPIO_ODR(GPIOA) = GPIO_ODR(GPIOA) | (2 << 0);  // WE 1 ( ASEL> WE Flash)
+    GPIO_ODR(GPIOA) = GPIO_ODR(GPIOA) | (1 << 0);  // CE 1
+    SetData_Input();
+
+    /*SetAddress(address);
+    GPIO_ODR(GPIOB) = GPIO_ODR(GPIOB) | (1 << 1);  // OE 1
+    GPIO_ODR(GPIOA) = GPIO_ODR(GPIOA) & ~(1 << 0); // CE 0
+    SetData_OUTPUT();
+    DirectWrite16(word);
+    GPIO_ODR(GPIOA) = GPIO_ODR(GPIOA) | (1 << 0);  // CE 1
+    SetData_Input();
+
+    GPIO_ODR(GPIOA) = GPIO_ODR(GPIOA) & ~(2 << 0); // WE 0 ( ASEL> WE Flash)
+    SetAddress(address);
+     wait();
+    GPIO_ODR(GPIOB) = GPIO_ODR(GPIOB) | (1 << 1);  // OE 1
+    GPIO_ODR(GPIOA) = GPIO_ODR(GPIOA) & ~(1 << 0); // CE 0
+     wait();
+    SetData_OUTPUT();
+    DirectWrite16(word);
+    wait();
+    GPIO_ODR(GPIOA) = GPIO_ODR(GPIOA) | (2 << 0);  // WE 1 ( ASEL> WE Flash)
+    GPIO_ODR(GPIOA) = GPIO_ODR(GPIOA) | (1 << 0);  // CE 1
+     wait();
+    SetData_Input();*/
+}
+
+void ResetFlash(void)
+{
+    writeFlash16(0x5555,0xAAAA);
+    writeFlash16(0x2AAA,0x5555);
+    writeFlash16(0x5555,0xF0F0);
 }
 
 void EraseFlash()
 {
 
-    writeFlash8(0x5555, 0xAA);
-    writeFlash8(0x2AAA, 0x55);
-    writeFlash8(0x5555, 0x80);
-    writeFlash8(0x5555, 0xAA);
-    writeFlash8(0x2AAA, 0x55);
-    writeFlash8(0x5555, 0x10);
+    writeFlash16(0x5555, 0xAAAA);
+    writeFlash16(0x2AAA, 0x5555);
+    writeFlash16(0x5555, 0x8080);
+    writeFlash16(0x5555, 0xAAAA);
+    writeFlash16(0x2AAA, 0x5555);
+    writeFlash16(0x5555, 0x1010);
 
 }
 
@@ -778,6 +823,75 @@ void ByteProgramFlash(int adress, int byte)
     wait();
     wait();
 }
+
+
+void CFIByteProgram(int adress, int byte)
+{
+    writeCFI8(0xAAAA,0xAA);
+    writeCFI8(0x5555,0x55);
+    writeCFI8(0xAAAA,0xA0);
+    writeCFI8(adress,byte);
+    wait();
+    wait();
+    wait();
+}
+
+void CFIWordProgram(void)
+{
+    writeFlash16(0x5555, 0xAAAA);
+    writeFlash16(0x2AAA, 0x5555);
+    writeFlash16(0x5555, 0xA0A0);
+}
+
+// CFI Query Part
+
+void CFI_Query(void)
+{
+
+    ResetFlash();
+    wait();
+    gpio_clear(GPIOA,Asel); // Enable Flash Write
+
+// Octet Paire
+    for(unsigned char i = 0; i < 16; i++)
+    {
+        CFIWordProgram();
+        writeFlash16(i,0x5555);
+        CFIWordProgram();
+        writeFlash16(i,0x5555);
+    }
+
+    gpio_set(GPIOA,Asel); // Disable Flash Write
+
+    /*
+      // Enable CFI Mode
+
+        writeCFI8(0x5555, 0xAA);
+        writeCFI8(0x5555, 0x55);
+        writeCFI8(0x5555, 0x98);
+
+      // Read CFI Query Identification String
+
+
+          cfi_buffer[0]=ReadFlash8(20);
+    cfi_buffer[1]=ReadFlash8(22);
+    cfi_buffer[2]=ReadFlash8(24);
+        //  cfi_buffer[1]=ReadFlash16(11);
+        //  cfi_buffer[1]=ReadFlash16(12);
+
+
+
+      // Exit CFI Mode
+
+        writeFlash8(0x5555, 0xAA);
+        writeFlash8(0x2AAA, 0x55);
+        writeFlash8(0x5555, 0xF0);
+
+    gpio_set(GPIOA,Asel); // Disable Flash Write */
+
+}
+
+// Megadrive Part
 
 void ReadMDHeader(void)
 {
@@ -866,7 +980,6 @@ void ReadMDHeader(void)
 static void gpio_setup(void)
 {
 
-
     // RCC Set System Clock PLL at 72MHz from HSE at 8MHz
     rcc_clock_setup_in_hse_8mhz_out_72mhz();
 
@@ -925,22 +1038,22 @@ void sys_tick_handler(void)
             hid_interrupt = 0x08;
         }
 
-        if (hid_buffer_IN[0] == 0x09  ) // HID Command Read16
+        if (hid_buffer_IN[0] == 0x09  ) // HID Command 16 bits read
         {
             hid_interrupt = 0x09;
         }
 
-        if (hid_buffer_IN[0] == 0x0A  ) // HID Command Read8
+        if (hid_buffer_IN[0] == 0x0A  ) // HID Command 8 bits read (start at sram location)
         {
             hid_interrupt = 0x0A;
         }
 
-        if (hid_buffer_IN[0] == 0x0B  ) // HID Command Erase8
+        if (hid_buffer_IN[0] == 0x0B  ) // HID Command 8 bits erease (start at sram location)
         {
             hid_interrupt = 0x0B;
         }
 
-        if (hid_buffer_IN[0] == 0x0D  ) // HID Command Write8
+        if (hid_buffer_IN[0] == 0x0D  ) // HID Command 8 bits write (start at sram location)
         {
             hid_interrupt = 0x0D;
         }
@@ -949,6 +1062,18 @@ void sys_tick_handler(void)
         {
             hid_interrupt = 0x0E;
         }
+
+
+        if (hid_buffer_IN[0] == 0x0F  ) // HID Command CFI Query
+        {
+            hid_interrupt = 0x0F;
+        }
+
+        if (hid_buffer_IN[0] == 0x1B  ) // HID Command Erase_CFI_Flash
+        {
+            hid_interrupt = 0x1B;
+        }
+
     }
 
 }
@@ -1006,7 +1131,7 @@ int main(void)
     usbd_register_set_config_callback(usbd_dev, hid_set_config);
     usbd_register_suspend_callback(usbd_dev, usb_suspend_callback);
 
-    // Hid OUT Buffer clean
+    // OUT Buffer clean
 
     for (unsigned int i = 0; i < 64; i++)
     {
@@ -1014,7 +1139,7 @@ int main(void)
     }
 
     GPIO_ODR(GPIOA) = GPIO_ODR(GPIOA) | (1 << 3); // Active Time 1
-    ReadMDHeader(); // Read some cool stuff
+    ReadMDHeader(); // Prepare MD Part
     GPIO_ODR(GPIOA) = GPIO_ODR(GPIOA) | (1 << 3); // Active Time 1
     gpio_clear(GPIOC, GPIO13);
     hid_interrupt=1; // Enable HID Interrupt
@@ -1135,6 +1260,47 @@ int main(void)
                 hid_buffer_OUT[i]=ReadFlash8(adress+i);
             }
 
+            usbd_ep_write_packet(usbd_dev, 0x81,hid_buffer_OUT, sizeof(hid_buffer_OUT));
+            hid_buffer_IN[0]=0;
+            hid_interrupt=1; // Enable HID Interrupt
+        }
+
+        // CFI Flash Part
+
+        if (hid_interrupt == 0x0F)   // CFI Query
+        {
+
+            hid_interrupt=0; // Disable HID Interrupt
+            ResetFlash();
+            wait();
+            gpio_clear(GPIOA,Asel); // Enable Flash Write
+
+            for(unsigned int i = 0; i < 32; i=i+2)
+            {
+
+                word16=(hid_buffer_IN[33+i] << 8 | hid_buffer_IN[32+i] );
+                CFIWordProgram();
+                writeFlash16(adress+(i/2),word16);
+                CFIWordProgram();
+                writeFlash16(adress+(i/2),word16);
+            }
+            adress +=16;
+            gpio_set(GPIOA,Asel); // Enable Flash Write
+            hid_buffer_OUT[0]=0xAA;
+            usbd_ep_write_packet(usbd_dev, 0x81,hid_buffer_OUT, sizeof(hid_buffer_OUT));
+            hid_buffer_IN[0]=0;
+            hid_interrupt=1; // Enable HID Interrupt
+
+        }
+
+        if (hid_interrupt == 0x1B)   // Erase CFI Flash
+        {
+            hid_interrupt=0;  // Disable HID Interrupt
+            gpio_clear(GPIOA,Asel); // Enable Flash Write
+            hid_buffer_OUT[0]=0xAA;
+            ResetFlash();
+            wait();
+            EraseFlash();
             usbd_ep_write_packet(usbd_dev, 0x81,hid_buffer_OUT, sizeof(hid_buffer_OUT));
             hid_buffer_IN[0]=0;
             hid_interrupt=1; // Enable HID Interrupt
