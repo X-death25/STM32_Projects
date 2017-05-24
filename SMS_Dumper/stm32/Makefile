@@ -1,7 +1,7 @@
 CROSS_COMPILE ?= arm-none-eabi-
 CC = $(CROSS_COMPILE)gcc
 OBJCOPY = $(CROSS_COMPILE)objcopy
-LIBOPENCM3 ?= /Users/fabrice/Documents/libopencm3
+LIBOPENCM3 ?= ./libopencm3
 
 APP_ADDRESS = 0x08002000
 APP_OFFSET = $(shell echo $$(($(APP_ADDRESS) - 0x08000000)))
