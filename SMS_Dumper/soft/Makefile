@@ -1,13 +1,13 @@
 
 #OS = LINUX
-OS = MACOSX
-#OS = WINDOWS
+#OS = MACOSX
+OS = WINDOWS
 
 PROG = SMS_dumper_v0
 
 # To set up Ubuntu Linux to cross compile for Windows:
 #
-#    apt-get install mingw32 mingw32-binutils mingw32-runtime
+#    apt-get install i686-w64-mingw32-gcc
 #
 # Just edit the variable above for WINDOWS, then use "make" to build rawhid.exe
 
@@ -27,8 +27,8 @@ CFLAGS = -Wall -O2 -DOS_$(OS) -isysroot $(SDK) $(ARCH)
 LIBS = $(ARCH) -Wl,-syslibroot,$(SDK) -framework IOKit -framework CoreFoundation
 else ifeq ($(OS), WINDOWS)
 TARGET = $(PROG).exe
-CC = i586-mingw32msvc-gcc
-STRIP = i586-mingw32msvc-strip
+CC=i686-w64-mingw32-gcc
+STRIP=i686-w64-mingw32-strip
 CFLAGS = -Wall -O2 -DOS_$(OS)
 LIBS = -lhid -lsetupapi
 endif
