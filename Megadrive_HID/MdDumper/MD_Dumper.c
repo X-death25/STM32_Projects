@@ -33,9 +33,26 @@
 #define Read16     0x09  // Read16 : Read Page (64 byte) in 16 bit mode
 #define Read8      0x0A  // Read8  : Read Page (64 byte) in 8 bit mode
 #define Erase8     0x0B  // Erase8 : Erase Page (64 byte) in 8 bit mode
-#define Erase16    0x0C  // Erase16: Erase Page (64 byte) in 16 bit mode
 #define Write8     0x0D  // Write8  :Write Page (32 byte) in 8 bit mode
 #define ReadSMS    0x0E  // DumpSMS : Dump SMS cartridge
+
+// CFI Flash Special Command
+
+#define CFI        0x0F  // Read CFI Table
+#define EraseCFI   0x1B  // Erase CFI Flash
+
+
+void pause(char const *message)
+{
+    int c;
+ 
+    printf("%s", message);
+    fflush(stdout);
+ 
+    while ((c = getchar()) != '\n' && c != EOF)
+    {
+    }
+}
 
 int main()
 {
@@ -44,6 +61,7 @@ int main()
     unsigned char buf[64];
     int choixMenu=0;
     int ReadOK=1;
+    int Taille_Roms=0;
     unsigned long address=0;
     unsigned long compteur=0;
     unsigned long i=0;
@@ -86,7 +104,7 @@ int main()
 
     HIDCommand[0] = WakeUP; // Select WakeUP Command
     HIDCommand[6]=0xCC; // Disable Mapper control for SMS Cartridge
-    rawhid_send(0,HIDCommand,64,15);
+    rawhid_send(0,HIDCommand,64,30);
 
     while (ReadOK !=0)
     {
@@ -183,6 +201,8 @@ int main()
     printf("3.Write SMD Save\n");
     printf("4.Erase SMD Save\n");
     printf("5.Dump SMS ROM \n");
+    printf("6.Erase Flash Chip \n");
+    printf("7.Write Flash x16 mode \n");
     printf("8.SMD Hex View \n");
     printf("9.SMS Hex View \n");
     printf("\nWhat do you want ?\n\n");
@@ -229,16 +249,20 @@ int main()
             HIDCommand[2]=(address & 0xFF00)>>8;
             HIDCommand[3]=(address & 0xFF0000)>>16;
             HIDCommand[4]=(address & 0xFF000000)>>24;
-            rawhid_send(0, HIDCommand, 64, 15);
-            rawhid_recv(0,(BufferROM+ (address*2)), 64,15);
+            rawhid_send(0, HIDCommand, 64, 30);
+            rawhid_recv(0,(BufferROM+ (address*2)), 64,30);
             address +=32 ;
+            printf("\r ROM dump in progress: %lu%%", ((100* address)/(1024*Gamesize)*2));
+            fflush(stdout);
         }
 
         dump=fopen("dump.bin","wb");
         fwrite(BufferROM,1,1024*Gamesize,dump);
         finish = clock();
-        printf("Dump completed in %ld ms",(finish - start));
+        printf("\n Dump completed in %ld seconds",(finish - start)/1000);
+        printf("\nPress any key to exit \n");
         scanf("%d");
+        return 0;
         break;
 
     case 2:
@@ -262,8 +286,8 @@ int main()
             BufferSave[i]=0xFF;
             BufferROM[i]=0xFF;
         }
-        rawhid_send(0, HIDCommand, 64, 15);
-        num = rawhid_recv(0,buf, 64,15);
+        rawhid_send(0, HIDCommand, 64, 30);
+        num = rawhid_recv(0,buf, 64,30);
         address = address/2; // 8 bits read
         while (j < (1024*64) )
         {
@@ -272,8 +296,8 @@ int main()
             HIDCommand[2]=(address & 0xFF00)>>8;
             HIDCommand[3]=(address & 0xFF0000)>>16;
             HIDCommand[4]=(address & 0xFF000000)>>24;
-            rawhid_send(0, HIDCommand, 64, 15);
-            rawhid_recv(0,BufferROM+j, 64,15);
+            rawhid_send(0, HIDCommand, 64, 30);
+            rawhid_recv(0,BufferROM+j, 64,30);
             j +=64;
             address +=64;
         }
@@ -309,7 +333,9 @@ int main()
         dump=fopen("dump.srm","wb");
         fwrite(BufferSave,1,(1024*64),dump);
         printf("Dump Save OK");
+        printf("\nPress any key to exit \n");
         scanf("%d");
+        return 0;
         break;
 
     case 3:
@@ -323,9 +349,8 @@ int main()
         if (save == NULL)
         {
             printf("file save.srm not found !\n");
-            printf("exit application\n");
-            scanf("%d");
-            exit(0);
+            pause("Appuyez sur une touche pour quitter");
+            return 0;
         }
         else
         {
@@ -350,10 +375,10 @@ int main()
                     {
                         HIDCommand[32+i]=BufferSave[i+j];
                     }
-                    rawhid_send(0,HIDCommand, 64, 15);
+                    rawhid_send(0,HIDCommand, 64, 30);
                     while (buf[0] != 0xAA)
                     {
-                        num = rawhid_recv(0,buf, 64,15);
+                        num = rawhid_recv(0,buf, 64,30);
                     }
                     j +=32;
                 }
@@ -394,28 +419,31 @@ int main()
                 }
             }
             printf("Save Writted sucessfully ! \n");
-            scanf("%d");
+             printf("\nPress any key to exit \n");
+        scanf("%d");
+        return 0;
         }
 
         break;
 
     case 4:
         printf("WARNING ALL SAVED DATA WILL BE LOST CONTINUE ?  \n");
-        scanf("%d");
+        pause("\n");
         printf("Sending command Erase Save \n");
         HIDCommand[0] = 0x0B; // Select Erase in 8bit Mode
-        rawhid_send(0, HIDCommand, 64, 15);
+        rawhid_send(0, HIDCommand, 64, 30);
         printf("Erasing please wait...");
         while (buf[0] != 0xAA)
         {
-            num = rawhid_recv(0,buf, 64,15);
+            num = rawhid_recv(0,buf, 64,30);
         }
         printf("\nErase completed sucessfully ! \n");
+        return 0;
         break;
 
     case 5:
         printf("Enter number of Ko to dump \n");
-        scanf("%d", &Gamesize);
+        scanf("%ld", &Gamesize);
         printf("Sending command Dump SMS \n");
         printf("Dumping please wait ...\n");
         HIDCommand[0] = 0x0E; // Select Dump SMS
@@ -425,8 +453,8 @@ int main()
         HIDCommand[3]=(address & 0xFF0000)>>16;
         HIDCommand[4]=(address & 0xFF000000)>>24;
         HIDCommand[11]=0xCC; // Disable SMS Mapper Control
-        rawhid_send(0, HIDCommand, 64, 15);
-        rawhid_recv(0,BufferROM, 64,15);
+        rawhid_send(0, HIDCommand, 64, 30);
+        rawhid_recv(0,BufferROM, 64,30);
 
         while (compteur < (1024*Gamesize))
         {
@@ -622,8 +650,8 @@ int main()
             HIDCommand[2]=(address & 0xFF00)>>8;
             HIDCommand[3]=(address & 0xFF0000)>>16;
             HIDCommand[4]=(address & 0xFF000000)>>24;
-            rawhid_send(0, HIDCommand, 64, 15);
-            rawhid_recv(0,BufferROM+j, 64,15);
+            rawhid_send(0, HIDCommand, 64, 30);
+            rawhid_recv(0,BufferROM+j, 64,30);
             j+=64;
             address +=64;
             compteur +=64;
@@ -631,10 +659,125 @@ int main()
         dump=fopen("dump.sms","wb");
         fwrite(BufferROM,1,(1024*Gamesize),dump);
         printf("Dump SMS OK");
+         printf("\nPress any key to exit \n");
         scanf("%d");
+        return 0;
         break;
 
-    case 8:
+    
+
+	    case 6:
+        printf("WARNING ALL SAVED DATA WILL BE LOST CONTINUE ?  \n");
+        pause("\n");
+        printf("Sending command Erase Save \n");
+        HIDCommand[0] = 0x1B; // Select EraseCFI Mode
+        rawhid_send(0, HIDCommand, 64, 30);
+        printf("Erasing please wait...");
+        while (buf[0] != 0xAA)
+        {
+            num = rawhid_recv(0,buf, 64,30);
+        }
+        printf("\nErase completed sucessfully ! \n");
+         printf("\nPress any key to exit \n");
+        scanf("%d");
+        return 0;
+        break;
+
+     
+        case 7:
+       /* printf("Detecting CFI Flash ... \n");
+        printf("Sending command CFI Query \n");
+        ReadOK=1;
+        HIDCommand[0] = 0x0F; // Select CFI Mode
+        rawhid_send(0, HIDCommand, 64, 15);
+     while (ReadOK !=0)
+    {
+
+        num = rawhid_recv(0, buf, 64,15);
+        if (num < 0)
+        {
+            printf("\nerror reading, device went offline\n");
+            rawhid_close(0);
+            return 0;
+        }
+        if (num > 0)
+        {
+            // a commenter
+           // printf("\nrecu %d bytes:\n", num);
+            for (i=0; i<num; i++) {
+            	printf("%02X ", buf[i] & 255);
+            	if (i % 16 == 15 && i < num-1) printf("\n");
+            }
+            printf("\n");
+            ReadOK=0;
+        }
+    }*/
+      //  printf("CFI Table Found !\n");
+
+printf("Opening game file.. \n");
+        save=fopen("game.bin","rb");
+
+                // Calcul de la taille du fichier d'entrée
+                fseek(save,0,SEEK_END); // on amène le curseur à la fin du fichier
+                Taille_Roms = ftell(save); // on récupère la  taille du fichier 
+                BufferSave= (unsigned char*)malloc(Taille_Roms); // On alloue un buffer de 2 Mo
+                fseek(save,0,SEEK_SET); // On repositionne le curseur à 0
+
+        if (save == NULL)
+        {
+            printf("file game.bin not found !\n");
+            printf("exit application\n");
+            pause("Appuyez sur une touche pour continuer");
+            exit(0);
+        }
+        else
+        {
+            // Cleaning Buffer Save
+
+           printf("Cleaning Buffer...\n");
+            for (i=0; i<Taille_Roms; i++)
+            {
+                BufferSave[i]=0x00;
+            }
+
+            // Sending Game to buffer
+
+            printf("Sending Game to Flash...\n");
+            for (i=0; i<Taille_Roms; i++)
+            {
+               fread(&octetActuel,1,1, save); 
+               BufferSave[i]=octetActuel;  
+            }
+ // Sending Game to Chip
+
+                while ( j<  Taille_Roms) // /8 OK
+                {
+                    HIDCommand[0] = 0x0F; // Select CFI Write
+                    for (i=0; i<32; i++)
+                    {
+                        HIDCommand[32+i]=BufferSave[i+j];
+                    }
+
+                    rawhid_send(0,HIDCommand, 64, 30);
+                                    
+                    while (buf[0] != 0xAA) // Wait until interrupt
+                    {
+                        num = rawhid_recv(0,buf, 64,25);
+                    }
+                    j=j+32;                   
+               }
+             }
+
+            j=0;
+                    finish = clock();
+            printf("Write completed in %ld ms\n",(finish - start));
+             printf("\nPress any key to exit \n");
+        scanf("%d");
+        return 0;
+        	break;
+
+
+	case 8:
         BufferROM = (unsigned char*)malloc(1024*Gamesize);
         HIDCommand[0] = 0x09; // Select Read in 16bit Mode
         while (1)
@@ -646,14 +789,14 @@ int main()
             HIDCommand[2]=(address & 0xFF00)>>8;
             HIDCommand[3]=(address & 0xFF0000)>>16;
             HIDCommand[4]=(address & 0xFF000000)>>24;
-            rawhid_send(0, HIDCommand, 64, 15);
-            num = rawhid_recv(0,buf, 64,15);
+            rawhid_send(0, HIDCommand, 64, 30);
+            num = rawhid_recv(0,buf, 64,30);
             if (num > 0)
             {
-                printf("\n\n", num);
+                printf("\n\n");
                 for (i=0; i<num; i++)
                 {
-                    printf("%02X ", buf[i] & 255);
+                    printf("%02X ", buf[i]);
                     if (i % 16 == 15 && i < num-1) printf("\n");
                 }
             }
@@ -663,8 +806,8 @@ int main()
     case 9:
         BufferROM = (unsigned char*)malloc(1024*Gamesize);
         HIDCommand[0] = 0x0A; // Select Read in 8bit Mode
-        rawhid_send(0, HIDCommand, 64, 15);
-        num = rawhid_recv(0,buf, 64,15);
+        rawhid_send(0, HIDCommand, 64, 30);
+        num = rawhid_recv(0,buf, 64,30);
         while (1)
         {
             printf("\n\nEnter ROM Address ( decimal value) :\n \n");
@@ -675,11 +818,11 @@ int main()
             HIDCommand[3]=(address & 0xFF0000)>>16;
             HIDCommand[4]=(address & 0xFF000000)>>24;
 
-            rawhid_send(0, HIDCommand, 64, 15);
-            num = rawhid_recv(0,buf, 64,15);
+            rawhid_send(0, HIDCommand, 64, 30);
+            num = rawhid_recv(0,buf, 64,30);
             if (num > 0)
             {
-                printf("\n\n", num);
+                printf("\n\n");
                 for (i=0; i<num; i++)
                 {
                     printf("%02X ", buf[i] & 255);
@@ -691,7 +834,9 @@ int main()
 
     default:
         printf("Nice try bye ;)");
+         printf("\nPress any key to exit \n");
         scanf("%d");
+        return 0;
     }
 }
 
