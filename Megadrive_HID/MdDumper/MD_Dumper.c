@@ -93,9 +93,8 @@ int main()
         r = rawhid_open(1, 0x0483, 0x5750,-1, -1);
         if (r <= 0)
         {
-            printf("No hid device found\n");
-            scanf("%d", &choixMenu);
-            return -1;
+            printf("No hid device found\n\n");
+            return 0;
         }
     }
 
@@ -112,7 +111,7 @@ int main()
         num = rawhid_recv(0, buf, 64,15);
         if (num < 0)
         {
-            printf("\nerror reading, device went offline\n");
+            printf("\nerror reading, device went offline\n\n");
             rawhid_close(0);
             return 0;
         }
@@ -158,55 +157,55 @@ int main()
         SaveSize = ((buf[45]) | (buf[46] << 8));
         SaveSize=(SaveSize/1024)+1;
 
-        printf("Game Name : %.*s \n",32,GameName);
-        printf("Release Date : %.*s \n",8,ReleaseDate);
-        printf("Game Size : %ld Ko \n",Gamesize);
+        printf("Game Name : %.*s\n",32,GameName);
+        printf("Release Date : %.*s\n",8,ReleaseDate);
+        printf("Game Size : %ld Ko\n",Gamesize);
         if (buf[43]!=0x01)
         {
-            printf("Save Support : No\n ");
+            printf("Save Support : No\n");
         }
         else
         {
-            printf("Save Support : Yes\n ");
-            printf("Save Size : %d Ko \n",SaveSize);
+            printf("Save Support : Yes\n");
+            printf("Save Size : %d Ko\n",SaveSize);
             if (buf[44]==0xF8)
             {
-                printf("Save Type : SRAM\n ");
+                printf("Save Type : SRAM\n");
             }
             if (buf[44]==0xE8)
             {
-                printf("Save Type : EEPROM\n ");
+                printf("Save Type : EEPROM\n");
             }
         }
-        printf("Region : %c",buf[48]);
-        printf("%c",buf[49]);
-        printf("%c \n\n",buf[50]);
+        printf("Region : %c%c%c\n\n",buf[48],buf[49],buf[50]);
     }
 
     else if (memcmp(TMSS_SMS,"TMR SEGA", sizeof(TMSS_SMS)) == 0)
     {
-        printf("Master System/Mark3 Cartridge Detected !\n\n");
+        printf("Master System/Mark3 Cartridge Detected !\n");
     }
 
     else
     {
-        printf("Unknown cartridge or bad connection  ...\n ");
+        printf("Unknown cartridge or bad connection  ...\n");
     }
 
 
 
     printf("---Menu---\n\n");
-    printf("1.Dump SMD ROM\n");
-    printf("2.Dump SMD Save\n");
-    printf("3.Write SMD Save\n");
-    printf("4.Erase SMD Save\n");
-    printf("5.Dump SMS ROM \n");
-    printf("6.Erase Flash Chip \n");
-    printf("7.Write Flash x16 mode \n");
-    printf("8.SMD Hex View \n");
-    printf("9.SMS Hex View \n");
+    printf(" 1.Dump SMD ROM\n");
+    printf(" 2.Dump SMD Save\n");
+    printf(" 3.Write SMD Save\n");
+    printf(" 4.Erase SMD Save\n");
+    printf(" 5.Dump SMS ROM \n");
+    printf(" 6.Erase Flash Chip \n");
+    printf(" 7.Write Flash x16 mode \n");
+    printf(" 8.SMD Hex View \n");
+    printf(" 9.SMS Hex View \n");
+    printf("10.Exit \n");
     printf("\nWhat do you want ?\n\n");
     scanf("%d", &choixMenu);
+    
     clock_t start = clock();
     clock_t finish = clock();
 
@@ -219,19 +218,13 @@ int main()
         printf("1.Auto (Size from header)\n");
         printf("2.Manual (Size from user)\n");
         scanf("%d", &choixMenu);
-        switch(choixMenu)
-        {
-        case 1:
-            Gamesize=Gamesize; // Gamesize is
-            break;
-        case 2:
+		if(choixMenu==2){
             printf("Enter number of Ko to dump \n");
             scanf("%ld", &Gamesize);
-            Gamesize=Gamesize;
-            break;
-        default:
-            Gamesize=Gamesize;
-            break;
+        }
+        if(choixMenu>2){
+        	printf("Wrong number! \n\n");
+	        return 0;	
         }
         printf("Sending command Dump ROM \n");
         printf("Dumping please wait ...\n");
@@ -241,9 +234,8 @@ int main()
         i=0;
         j=0;
         BufferROM = (unsigned char*)malloc(1024*Gamesize);
-        while (address < ((1024*Gamesize)/2) )
-
-        {
+        start = clock();
+        while (address < ((1024*Gamesize)/2) ){
 
             HIDCommand[1]=address & 0xFF;
             HIDCommand[2]=(address & 0xFF00)>>8;
@@ -252,16 +244,14 @@ int main()
             rawhid_send(0, HIDCommand, 64, 30);
             rawhid_recv(0,(BufferROM+ (address*2)), 64,30);
             address +=32 ;
-            printf("\r ROM dump in progress: %lu%%", ((100* address)/(1024*Gamesize)*2));
+            printf("\rROM dump in progress: %lu%%", ((100* address)/(1024*Gamesize)*2));
             fflush(stdout);
         }
-
+        finish = clock();
+        rawhid_close(0);
         dump=fopen("dump.bin","wb");
         fwrite(BufferROM,1,1024*Gamesize,dump);
-        finish = clock();
-        printf("\n Dump completed in %ld seconds",(finish - start)/1000);
-        printf("\nPress any key to exit \n");
-        scanf("%d");
+        printf("\nDump completed in %ld sec (%ld ms)\n\n",(finish - start)/(60*1000),(finish - start)/60);
         return 0;
         break;
 
@@ -303,10 +293,10 @@ int main()
         }
 
         j=0;
-        if (choixMenu==1)
-        {
-            SaveSize=SaveSize;
-        }
+//        if (choixMenu==1)
+//        {
+//            SaveSize=SaveSize;
+//        }
         if (choixMenu==2)
         {
             SaveSize=16;
@@ -330,11 +320,10 @@ int main()
             }
         }
 
+        rawhid_close(0);
         dump=fopen("dump.srm","wb");
         fwrite(BufferSave,1,(1024*64),dump);
-        printf("Dump Save OK");
-        printf("\nPress any key to exit \n");
-        scanf("%d");
+        printf("Dump Save OK\n\n");
         return 0;
         break;
 
@@ -348,8 +337,8 @@ int main()
         save=fopen("save.srm","rb");
         if (save == NULL)
         {
-            printf("file save.srm not found !\n");
-            pause("Appuyez sur une touche pour quitter");
+            printf("file save.srm not found !\n\n");
+       		rawhid_close(0);
             return 0;
         }
         else
@@ -418,10 +407,9 @@ int main()
                     j=j+32;
                 }
             }
-            printf("Save Writted sucessfully ! \n");
-             printf("\nPress any key to exit \n");
-        scanf("%d");
-        return 0;
+       		rawhid_close(0);
+            printf("Save Writted sucessfully ! \n\n");
+	        return 0;
         }
 
         break;
@@ -437,7 +425,8 @@ int main()
         {
             num = rawhid_recv(0,buf, 64,30);
         }
-        printf("\nErase completed sucessfully ! \n");
+        rawhid_close(0);
+        printf("\nErase completed sucessfully ! \n\n");
         return 0;
         break;
 
@@ -458,7 +447,6 @@ int main()
 
         while (compteur < (1024*Gamesize))
         {
-            address = address;
             if (j== 0xC000)
             {
                 HIDCommand[11]=0x03;    // Enable Bank3
@@ -656,11 +644,10 @@ int main()
             address +=64;
             compteur +=64;
         }
+        rawhid_close(0);
         dump=fopen("dump.sms","wb");
         fwrite(BufferROM,1,(1024*Gamesize),dump);
-        printf("Dump SMS OK");
-         printf("\nPress any key to exit \n");
-        scanf("%d");
+        printf("Dump SMS OK\n\n");
         return 0;
         break;
 
@@ -677,9 +664,8 @@ int main()
         {
             num = rawhid_recv(0,buf, 64,30);
         }
-        printf("\nErase completed sucessfully ! \n");
-         printf("\nPress any key to exit \n");
-        scanf("%d");
+        rawhid_close(0);
+        printf("\nErase completed sucessfully ! \n\n");
         return 0;
         break;
 
@@ -726,9 +712,9 @@ printf("Opening game file.. \n");
         if (save == NULL)
         {
             printf("file game.bin not found !\n");
-            printf("exit application\n");
-            pause("Appuyez sur une touche pour continuer");
-            exit(0);
+            printf("exit application\n\n");
+            rawhid_close(0);
+            return 0;
         }
         else
         {
@@ -769,10 +755,9 @@ printf("Opening game file.. \n");
              }
 
             j=0;
-                    finish = clock();
-            printf("Write completed in %ld ms\n",(finish - start));
-             printf("\nPress any key to exit \n");
-        scanf("%d");
+        finish = clock();
+        rawhid_close(0);
+        printf("\nWrite completed in %ld sec (%ld ms)\n\n",(finish - start)/(60*1000),(finish - start)/60);
         return 0;
         	break;
 
@@ -802,6 +787,8 @@ printf("Opening game file.. \n");
             }
 
         }
+        rawhid_close(0);
+		break;
 
     case 9:
         BufferROM = (unsigned char*)malloc(1024*Gamesize);
@@ -831,13 +818,13 @@ printf("Opening game file.. \n");
             }
 
         }
+        rawhid_close(0);
+        break;
 
     default:
-        printf("Nice try bye ;)");
-         printf("\nPress any key to exit \n");
-        scanf("%d");
         return 0;
     }
+    return 0;
 }
 
 
