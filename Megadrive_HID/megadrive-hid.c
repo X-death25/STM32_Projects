@@ -55,12 +55,12 @@
 #define D1 			GPIO8  // PB8
 #define D2 			GPIO7  // PB7
 #define D3 			GPIO6  // PB6
-#define D4 			GPIO4  // PB4 
-#define D5 			GPIO3  // PB3 
-#define D6 			GPIO15 // PA15  
-#define D7 			GPIO10 // PA10   
+#define D4 			GPIO4  // PB4
+#define D5 			GPIO3  // PB3
+#define D6 			GPIO15 // PA15
+#define D7 			GPIO10 // PA10
 
-#define D8 			GPIO9  // PA9 
+#define D8 			GPIO9  // PA9
 #define D9 			GPIO8  // PA8
 #define D10 		GPIO15 // PB15
 #define D11 		GPIO14 // PB14
@@ -70,8 +70,6 @@
 #define D15			GPIO10 // PB10
 
 #define OE 			GPIO1  // PB1
-//#define WE_FLASH	GPIO5  // PB5
-
 #define CE 			GPIO0  // PA0
 #define MARK3 		GPIO1  // PA1
 #define WE_FLASH	GPIO2  // PA2 	/ASEL B26
@@ -79,7 +77,7 @@
 
 #define CLK_CLEAR 	GPIO4  // PA4
 #define CLK1 		GPIO7  // PA7
-#define CLK2 		GPIO6  // PA6  
+#define CLK2 		GPIO6  // PA6
 #define CLK3 		GPIO5  // PA5
 
 #define WE_SRAM 	GPIO15 // PC15	/LWR B28
@@ -98,7 +96,7 @@
 #define CFI_MODE   		0x17
 #define INFOS_ID   		0x18
 
-	 		
+
 
 
 // We need a special large control buffer for this device:
@@ -401,7 +399,7 @@ void setDataOutput(){
 void buffer_checksum(unsigned char * buffer, unsigned char length){
 	unsigned char i = 0;
 	unsigned int check = 0;
-	
+
 	while( i < length){
 		check += buffer[i];
 		i++;
@@ -419,7 +417,7 @@ void directWrite8(unsigned char val){
 
 	invVal = ~lut_write8[val] & 0x3D8;
 	GPIOB_BSRR |= lut_write8[val] | (invVal << 16); //set and reset pins GPIOB
-	
+
 	invVal = ~lut_write8[val] & 0x8400;
 	GPIOA_BSRR |= lut_write8[val] | (invVal << 16); //set and reset pins GPIOA
 }
@@ -427,27 +425,27 @@ void directWrite8(unsigned char val){
 
 void directWrite16(unsigned int val){
 	unsigned int invVal = 0;
-	
+
 	/*
 	#define D0 			GPIO9  // PB9
 	#define D1 			GPIO8  // PB8
 	#define D2 			GPIO7  // PB7
 	#define D3 			GPIO6  // PB6
-	#define D4 			GPIO4  // PB4 
-	#define D5 			GPIO3  // PB3 
-	
+	#define D4 			GPIO4  // PB4
+	#define D5 			GPIO3  // PB3
+
 	#define D10 		GPIO15 // PB15
 	#define D11 		GPIO14 // PB14
 	#define D12 		GPIO13 // PB13
 	#define D13 		GPIO12 // PB12
 	#define D14 		GPIO11 // PB11
 	#define D15			GPIO10 // PB10
-	
-	#define D6 			GPIO15 // PA15  
-	#define D7 			GPIO10 // PA10   
-	#define D8 			GPIO9  // PA9 
+
+	#define D6 			GPIO15 // PA15
+	#define D7 			GPIO10 // PA10
+	#define D8 			GPIO9  // PA9
 	#define D9 			GPIO8  // PA8
-	
+
 	busB = D0 - D5, D10 - D15 / mask FFD8
 	busA = D6 - D9,  / mask 8700
 	*/
@@ -457,7 +455,7 @@ void directWrite16(unsigned int val){
 
 	invVal = ~busB & 0xFFD8;
 	GPIOB_BSRR |= busB | (invVal << 16); //set and reset pins GPIOB
-	
+
 	invVal = ~busA & 0x8700;
 	GPIOA_BSRR |= busA | (invVal << 16); //set and reset pins GPIOA
 }
@@ -467,181 +465,193 @@ void directWrite16(unsigned int val){
 void directRead8(){
 	unsigned int busA = GPIOA_IDR;
 	unsigned int busB = GPIOB_IDR;
-	
+
     read8 = ((busB>>9)&0x1) | ((busB>>7)&0x2) | ((busB>>5)&0x4) | ((busB>>3)&0x8) | (busB&0x10) | ((busB<<2)&0x20) | ((busA>>9)&0x40) | ((busA>>3)&0x80); //Byte D0-7
 }
 
 void directRead16(){
 	unsigned int busA = GPIOA_IDR;
-	unsigned int busB = GPIOB_IDR;  
-		
+	unsigned int busB = GPIOB_IDR;
+
 	read16 = ((busB>>9)&0x1) | ((busB>>7)&0x2) | ((busB>>5)&0x4) | ((busB>>3)&0x8) | ((busB&0x10)) | ((busB<<2)&0x20) | ((busA>>9)&0x40) | ((busA>>3)&0x80) | ((busA>>1)&0x100) | ((busA<<1)&0x200) | ((busB>>5)&0x400) | ((busB>>3)&0x800) | ((busB>>1)&0x1000) | ((busB<<1)&0x2000) | ((busB<<3)&0x4000) | ((busB<<5)&0x8000); //Word D0-D15
 }
 
 void setAddress(unsigned long adr){
-    
+
     setDataOutput();
 
-    directWrite8(adr&0xFF);  
+    directWrite8(adr&0xFF);
     GPIOA_BRR  |= CLK1;
     GPIOA_BSRR |= CLK1;
-    
+
     directWrite8((adr>>8)&0xFF);
     GPIOA_BRR  |= CLK2;
     GPIOA_BSRR |= CLK2;
-    
+
     directWrite8((adr>>16)&0xFF);
     GPIOA_BRR  |= CLK3;
     GPIOA_BSRR |= CLK3;
-    
+
 }
 
 void readMd(){
 
 	unsigned char adr = 0;
 	unsigned char adr16 = 0;
-	
+
     setDataOutput();
-      
+
 	GPIOA_BSRR |= CE | CLK1| CLK2 | CLK3 | TIME | WE_FLASH | (CLK_CLEAR<<16);
 	GPIOB_BSRR |= OE;
 	GPIOA_BSRR |= CLK_CLEAR;
-    
-	
+
+
     while(adr<64){ // 64bytes/32word
-    	
+
 		setAddress(address+adr16);
 	    setDataInput();
-	    
+
 	    GPIOA_BRR |= CE;
 	    GPIOB_BRR |= OE;
-	      
-	    wait(16); //utile ?
-	    
-	    directRead16(); //save into read16 global  
+
+	    wait(16);
+
+	    directRead16(); //save into read16 global
 	    bufferOut[adr] = (read16 >> 8)&0xFF; //word to byte
 	    bufferOut[(adr+1)] = read16 & 0xFF;
-	    
+
 	    GPIOB_BSRR |= OE;
 	    GPIOA_BSRR |= CE;
 
 		adr+=2;  //buffer
 		adr16++; //md adr word
 	}
-		
+
 }
 
 
 void readMdSave(){
 
 	unsigned char adr = 0;
-	
+
     setDataOutput();
-      
+
 	GPIOA_BSRR |= CE | CLK1| CLK2 | CLK3 | TIME | WE_FLASH | (CLK_CLEAR<<16);
 	GPIOB_BSRR |= OE;
 	GPIOA_BSRR |= CLK_CLEAR;
-	
+
     while(adr<64){
 
 		setAddress((address+adr));
 
-	    setDataInput();       
-		GPIOB_BSRR |= D0; 
-   		GPIOA_BRR  |= CE | TIME;	
+        GPIOB_BSRR |= D0;
+    	GPIOA_BRR  |= TIME;
+        GPIOA_BSRR  |= TIME;
+
+	    setDataInput();
+
+   		GPIOA_BRR  |= CE;
 	    GPIOB_BRR  |= OE;
-	    
+
 	    wait(16); //utile ?
-	    	    
-	    directRead8(); //save into read8 global  
+	    directRead8(); //save into read8 global
 	    bufferOut[adr] = read8;
-	    
+
 	 	//inhib OE
-	    GPIOA_BSRR |= CE | TIME;
+	    GPIOA_BSRR |= CE;
 	    GPIOB_BSRR |= OE;
-  
+
 		adr++;
 	}
 }
 
 void writeMdSave(){
-	
+
 	unsigned char adr = 0;
-	
+
     setDataOutput();
-    
+
 	GPIOA_BSRR |= CE | CLK1| CLK2 | CLK3 | TIME | WE_FLASH | (CLK_CLEAR<<16);
 	GPIOB_BSRR |= OE;
 	GPIOA_BSRR |= CLK_CLEAR;
-	
+
+	// SRAM rom > 16Mbit
 	GPIOB_BSRR |= D0;
 	GPIOA_BRR  |= TIME;
+	GPIOA_BSRR |= TIME;
 
-    while(adr < bufferIn[4]){ //max 48bytes
-
+	while(adr < bufferIn[4]){
 		setAddress((address+adr));
-		 
-		GPIOB_BSRR |= OE;
 		GPIOA_BRR  |= CE;
 	    GPIOC_BRR  |= WE_SRAM;
-
-	    directWrite8(bufferIn[5 +adr]);     	
-
-	    GPIOC_BSRR |= WE_SRAM;
-	    GPIOA_BSRR |= CE;
-		
+		// wait(16); //utile ?
+		directWrite8(bufferIn[(5+adr)]);
+		GPIOC_BSRR |= WE_SRAM;
+		GPIOA_BSRR |= CE;
 		adr++;
 	}
 }
 
 
-void commandMdFlash(unsigned int adr, unsigned char val){
+void commandMdFlash(unsigned long adr, unsigned int val){
 
 	setAddress(adr);
 	GPIOA_BRR  |= CE;
 	GPIOA_BRR  |= WE_FLASH;
-	directWrite8(val);     	
+	directWrite16(val);
 	GPIOA_BSRR |= WE_FLASH;
 	GPIOA_BSRR |= CE;
 }
 
 
+void reset_command(){
+	setDataOutput();
+	commandMdFlash(0x5555, 0xAA);
+	commandMdFlash(0x2AAA, 0x55);
+	commandMdFlash(0x5555, 0xF0);
+	wait(16);
+}
+
 
 void eraseMdFlash(){
 
 	unsigned char poll_dq7=0;
-	
+
     setDataOutput();
-    
+
 	GPIOA_BSRR |= CE | CLK1| CLK2 | CLK3 | TIME | WE_FLASH | (CLK_CLEAR<<16);
 	GPIOB_BSRR |= OE;
 	GPIOA_BSRR |= CLK_CLEAR;
-	
+
     commandMdFlash(0x5555, 0xAA);
     commandMdFlash(0x2AAA, 0x55);
     commandMdFlash(0x5555, 0x80);
     commandMdFlash(0x5555, 0xAA);
     commandMdFlash(0x2AAA, 0x55);
     commandMdFlash(0x5555, 0x10);
-        
-	commandMdFlash(0x5555, 0xAA);
-	commandMdFlash(0x2AAA, 0x55);
-	commandMdFlash(0x5555, 0xF0);
 
-	setAddress(0);
-    setDataInput();
-    
-	GPIOA_BRR |= CE;
-	GPIOB_BRR |= OE;
-    while(!poll_dq7){
-		poll_dq7 = (GPIOA_IDR >> 3)&0x80; //test only dq7
-    }
-	GPIOB_BSRR |= OE;
-	GPIOA_BSRR |= CE;
-	
-	setDataOutput();
+	if(((chipid&0xFF00)>>8) == 0xBF){
+		//SST-MICROCHIP
+		wait(2400000);
 
-	bufferOut[0] = 0xFF;	
+		}else{
+
+		reset_command();
+
+		setAddress(0);
+		setDataInput();
+		GPIOA_BRR |= CE;
+		GPIOB_BRR |= OE;
+		wait(16);
+		while(!poll_dq7){
+			poll_dq7 = (GPIOA_IDR >> 3)&0x80; //test only dq7
+		}
+		GPIOB_BSRR |= OE;
+		GPIOA_BSRR |= CE;
+	}
+
+	reset_command();
+	bufferOut[0] = 0xFF;
 }
 
 
@@ -649,13 +659,13 @@ void eraseMdFlash(){
 void eraseMdFlash_29L3211(){
 
 	unsigned char poll_dq7=0;
-	
+
     setDataOutput();
-    
+
 	GPIOA_BSRR |= CE | CLK1| CLK2 | CLK3 | TIME | WE_FLASH | (CLK_CLEAR<<16);
 	GPIOB_BSRR |= OE;
 	GPIOA_BSRR |= CLK_CLEAR;
-	
+
     commandMdFlash(0x5555, 0xAA); //erase command
     commandMdFlash(0x2AAA, 0x55);
     commandMdFlash(0x5555, 0x80);
@@ -667,26 +677,21 @@ void eraseMdFlash_29L3211(){
 	GPIOA_BRR |= CE;
 	wait(10);
 	GPIOB_BRR |= OE;
-	
-	commandMdFlash(0x5555, 0xAA); //status register
-	commandMdFlash(0x2AAA, 0x55);
-	commandMdFlash(0x5555, 0x70);
+
+	reset_command();
 
 	setDataInput();
     while(poll_dq7!=0x80){
     	directRead16();
 	    poll_dq7 = (read16 & 0x80);
     }
-	
+
 	GPIOB_BSRR |= OE;
 	wait(10);
 	GPIOA_BSRR |= CE;
-	
-	commandMdFlash(0x5555, 0xAA); //reset/read mode
-	commandMdFlash(0x2AAA, 0x55);
-	commandMdFlash(0x5555, 0xF0);	
 
-	bufferOut[0] = 0xFF;	
+	reset_command();
+	bufferOut[0] = 0xFF;
 }
 
 void writeMdFlash(){
@@ -699,62 +704,52 @@ void writeMdFlash(){
 	29F800 (hynix)
 
 	*/
-	
+
 	//write in WORD
-	unsigned char adr16=0; 
+	unsigned char adr16=0;
 	unsigned char j=5;
 	unsigned char poll_dq7=0;
 	unsigned char true_dq7=0;
 	unsigned int val16=0;
-	
+
     setDataOutput();
-    
+
 	GPIOA_BSRR |= CE | CLK1| CLK2 | CLK3 | TIME | WE_FLASH | (CLK_CLEAR<<16);
 	GPIOB_BSRR |= OE;
 	GPIOA_BSRR |= CLK_CLEAR;
-    
+
     while(adr16 < (bufferIn[4]>>1)){
-		
+
 		val16 = ((bufferIn[j])<<8) | bufferIn[(j+1)];
 		true_dq7 = (val16 & 0x80);
 		poll_dq7 = ~true_dq7;
-		
+
 		if(val16!=0xFFFF){
-			
 		    setDataOutput();
-		    
+
 		    commandMdFlash(0x5555, 0xAA);
 	    	commandMdFlash(0x2AAA, 0x55);
 	    	commandMdFlash(0x5555, 0xA0);
-			
-			setAddress((address+adr16));
+			commandMdFlash((address+adr16), val16);
 
-			GPIOA_BRR |= CE;
-			GPIOA_BRR |= WE_FLASH;
+			if(((chipid&0xFF00)>>8) == 0xBF){
+				wait(160); //SST Microchip
+			}else{
 
-		    directWrite16(val16);
+                reset_command();
 
-		    GPIOA_BSRR |= WE_FLASH;
-		    GPIOA_BSRR |= CE;
-	
-			commandMdFlash(0x5555, 0xAA);
-	    	commandMdFlash(0x2AAA, 0x55);
-		    commandMdFlash(0x5555, 0xF0);			
-	
-			GPIOA_BRR |= CE;
-			GPIOB_BRR |= OE;
-			
-			setAddress((address+adr16));
-			setDataInput();
-			
-		    while(poll_dq7 != true_dq7){
-			    poll_dq7 = (GPIOA_IDR&0x400)>>3; 
-		    }
-		    
-			GPIOB_BSRR |= OE;
-			GPIOA_BSRR |= CE;			
+				GPIOA_BRR |= CE;
+				GPIOB_BRR |= OE;
+				setAddress((address+adr16));
+				setDataInput();
+			    while(poll_dq7 != true_dq7){
+				    poll_dq7 = (GPIOA_IDR&0x400)>>3;
+			    }
+				GPIOB_BSRR |= OE;
+				GPIOA_BSRR |= CE;
+			}
 		}
-		j+=2;   
+		j+=2;
 		adr16++;
     }
 
@@ -765,94 +760,88 @@ void writeMdFlash(){
 void writeMdFlash_29L3211(){
 	// works for 29L3211
 	// write in WORD - buffer 128 word/256 bytes
-	unsigned char adr16=0; 
+	unsigned char adr16=0;
 	unsigned char poll_dq7=0;
 	unsigned int val16=0;
 	unsigned int j=0;
-	
+
     setDataOutput();
-    
+
 	GPIOA_BSRR |= CE | CLK1| CLK2 | CLK3 | TIME | WE_FLASH | (CLK_CLEAR<<16);
 	GPIOB_BSRR |= OE;
 	GPIOA_BSRR |= CLK_CLEAR;
-    
+
     //automatique page 128 word/256 bytes
 	commandMdFlash(0x5555, 0xAA);
     commandMdFlash(0x2AAA, 0x55);
     commandMdFlash(0x5555, 0xA0);
 	wait(60);
-	
+
     while(adr16 < (bufferSize/2)){
-		
+
 		val16 = ((bufferMX_256bytes[j])<<8) | bufferMX_256bytes[(j+1)];
-		
+
 		setAddress(write_address +adr16);
-		
 		GPIOA_BRR |= CE;
-		GPIOA_BRR |= WE_FLASH;  		
-	    
+		GPIOA_BRR |= WE_FLASH;
 	    directWrite16(val16);
 		wait(60);
-		
 	    GPIOA_BSRR |= WE_FLASH;
 	    GPIOA_BSRR |= CE;
 		wait(60);
-		
-		j+=2;   
+
+		j+=2;
 		adr16++;
     }
-    	
-	wait(timeoutMx); 
-	
+
+	wait(timeoutMx);
+
 	GPIOA_BRR |= CE;
 	wait(10);
 	GPIOB_BRR |= OE;
 	wait(30);
 
-	commandMdFlash(0x5555, 0xAA); //status
-	commandMdFlash(0x2AAA, 0x55);
-	commandMdFlash(0x5555, 0x70);
-		
+	reset_command();
+
 	setDataInput();
     while(poll_dq7!=0x80){
     	directRead16();
 	    poll_dq7 = (read16 & 0x80);
     }
-	
+
 	GPIOB_BSRR |= OE;
 	wait(10);
 	GPIOA_BRR |= CE;
-	
-	commandMdFlash(0x5555, 0xAA); //reset
-	commandMdFlash(0x2AAA, 0x55);
-	commandMdFlash(0x5555, 0xF0);	
-	
+
+	reset_command();
+
 }
 
 void requestCfiAdr(unsigned int adr, unsigned char buf_index){
-	
+
 	setAddress(adr); //dataout in this function
-    
+
     setDataInput();
     GPIOA_BRR |= CE;
-    GPIOB_BRR |= OE;       
-    directRead16();  
-    bufferOut[buf_index] = read16&0xFF; 
+    GPIOB_BRR |= OE;
+	wait(16);
+    directRead16();
+    bufferOut[buf_index] = read16&0xFF;
     GPIOB_BSRR |= OE;
     GPIOA_BSRR |= CE;
 
 }
 
 void cfiMode(){
-	
+
     setDataOutput();
-    
+
 	GPIOA_BSRR |= CE | CLK1| CLK2 | CLK3 | TIME | WE_FLASH | (CLK_CLEAR<<16);
 	GPIOB_BSRR |= OE;
 	GPIOA_BSRR |= CLK_CLEAR;
-	
+
     commandMdFlash(0x55, 0x98);
-    
+
     requestCfiAdr(0x10, 0); //Q
     requestCfiAdr(0x11, 1); //R
     requestCfiAdr(0x12, 2); //Y
@@ -866,72 +855,68 @@ void cfiMode(){
     requestCfiAdr(0x28, 10); //Flash Device Descr. 0
     requestCfiAdr(0x29, 11); //Flash Device Descr. 1
 
+	reset_command();
+
 }
 
-void infosId(){ 
-	//seems to be valid only for 29LVxxx ?	
+void infosId(){
+	//seems to be valid only for 29LVxxx ?
     setDataOutput();
-    
+
 	GPIOA_BSRR |= CE | CLK1| CLK2 | CLK3 | TIME | WE_FLASH | (CLK_CLEAR<<16);
 	GPIOB_BSRR |= OE;
 	GPIOA_BSRR |= CLK_CLEAR;
-	
-    commandMdFlash(0x5555, 0xAA);
-    commandMdFlash(0x2AAA, 0x55);
-    commandMdFlash(0x5555, 0x90);	
-	
-	setAddress(0); //Manufacturer
-    setDataInput();
-    
-    GPIOA_BRR |= CE;
-    GPIOB_BRR |= OE;     
-    directRead16();  
-    bufferOut[0] = 0; 
-    bufferOut[1] = read16&0xFF; 
-    GPIOB_BSRR |= OE;
-    GPIOA_BSRR |= CE;
-    
-    setDataOutput();
 
-	commandMdFlash(0x5555, 0xAA);
-	commandMdFlash(0x2AAA, 0x55);
-	commandMdFlash(0x5555, 0xF0);	
-    
     commandMdFlash(0x5555, 0xAA);
     commandMdFlash(0x2AAA, 0x55);
     commandMdFlash(0x5555, 0x90);
-    	
-	setAddress(1); //Flash id
+
+	setAddress(0); //Manufacturer
     setDataInput();
+
     GPIOA_BRR |= CE;
-    GPIOB_BRR |= OE;     
-    directRead16();  
-    bufferOut[2] = 1; 
-    bufferOut[3] = read16&0xFF; 
+    GPIOB_BRR |= OE;
+	wait(16);
+    directRead16();
+    bufferOut[0] = 0;
+    bufferOut[1] = read16&0xFF;
     GPIOB_BSRR |= OE;
     GPIOA_BSRR |= CE;
 
-    setDataOutput();
+	reset_command();
 
-	commandMdFlash(0x5555, 0xAA);
-	commandMdFlash(0x2AAA, 0x55);
-	commandMdFlash(0x5555, 0xF0);
-	
-	chipid = (bufferOut[1]<<8) | bufferOut[3];	
+    commandMdFlash(0x5555, 0xAA);
+    commandMdFlash(0x2AAA, 0x55);
+    commandMdFlash(0x5555, 0x90);
+
+	setAddress(1); //Flash id
+    setDataInput();
+    GPIOA_BRR |= CE;
+    GPIOB_BRR |= OE;
+	wait(16);
+    directRead16();
+    bufferOut[2] = 1;
+    bufferOut[3] = read16&0xFF;
+    GPIOB_BSRR |= OE;
+    GPIOA_BSRR |= CE;
+
+    reset_command();
+
+	chipid = (bufferOut[1]<<8) | bufferOut[3];
 }
 
 
 void sms_mapper_register(unsigned char slot){
-    
+
     setDataOutput();
 
     setAddress(slotRegister);
  	GPIOA_BSRR |= CE; //A15 hi
    	GPIOB_BRR  |= OE;
     GPIOC_BRR  |= WE_SRAM;
-    
-    directWrite8(slot); //slot 0..2     	
-    
+
+    directWrite8(slot); //slot 0..2
+
     GPIOC_BSRR |= WE_SRAM;
    	GPIOB_BSRR |= OE;
 	GPIOA_BRR  |= CE; //A15 low
@@ -942,35 +927,27 @@ void readSms(){
 
 	unsigned char adr = 0;
 	unsigned char pageNum = 0;
-	    
+
     gpio_set_mode(GPIOA, GPIO_MODE_OUTPUT_50_MHZ, GPIO_CNF_OUTPUT_PUSHPULL, MARK3); //Mark as output (low)
 	GPIOA_BSRR |= CLK1| CLK2 | CLK3 | TIME | WE_FLASH | ((CE | MARK3 | CLK_CLEAR)<<16);
 	GPIOB_BSRR |= OE;
 	GPIOA_BSRR |= CLK_CLEAR;
-	
-	/*	
-	md    sms
-	CE  = A15
-	OE  = OE
-	A17 = CE
-	*/
-	
-	
+
    	if(address < 0x4000){
   		slotRegister = 0xFFFD; 	// slot 0 sega
   		pageNum = 0;
-   		slotAdr = address;     	       		
+   		slotAdr = address;
    	}else if(address < 0x8000){
   		slotRegister = 0xFFFE; 	// slot 1 sega
   		pageNum = 1;
-   		slotAdr = address;     	       		
+   		slotAdr = address;
    	}else{
   		slotRegister = 0xFFFF; 	// slot 2 sega
   		pageNum = (address/0x4000); //page num max 0xFF - 32mbits
-   		slotAdr = 0x8000 + (address & 0x3FFF);     	
+   		slotAdr = 0x8000 + (address & 0x3FFF);
    	}
 
-	sms_mapper_register(pageNum);		
+	sms_mapper_register(pageNum);
 
 	if(slotAdr > 0x7FFF){GPIOA_BSRR |= CE;} //CE md == A15 in SMS mode !
 
@@ -978,12 +955,12 @@ void readSms(){
 
 		setAddress(slotAdr +adr);
 
-	    setDataInput();       
+	    setDataInput();
 	    GPIOB_BRR |= OE;
-	    
+
 	    wait(16);
 
-	    directRead8(); //save into read8 global  
+	    directRead8(); //save into read8 global
 	    bufferOut[adr] = read8;
 
 	    GPIOB_BSRR |= OE;
@@ -1011,29 +988,29 @@ void usb_wakeup_isr(void){
 
 
 void sys_tick_handler(void){
-	
+
     if(hid_interrupt == 1){
-    	
+
     	bufferIn[0] = 0;
 		usbd_ep_read_packet(usbd_dev, 0x01, bufferIn, 64);
-		
+
 		if(dump_running){
 			if(bufferIn[0]==0xFF){
 				dump_running = 0; //stop
 				}else{
-				bufferIn[0] = READ_MD;	
+				bufferIn[0] = READ_MD;
 			}
 		}else if(dump_running_ms){
 			if(bufferIn[0]==0xFF){
 				dump_running_ms = 0; //stop
 			    gpio_set_mode(GPIOA, GPIO_MODE_OUTPUT_50_MHZ, GPIO_CNF_INPUT_FLOAT, MARK3); //inhib MK3 pin
 				}else{
-				bufferIn[0] = READ_SMS;	
-			}		
+				bufferIn[0] = READ_SMS;
+			}
 		}else{
-			address = (bufferIn[3]<<16) | (bufferIn[2]<<8) | bufferIn[1]; 
+			address = (bufferIn[3]<<16) | (bufferIn[2]<<8) | bufferIn[1];
 		}
-	
+
  		switch(bufferIn[0]){
 	 		case WAKEUP:
 	 		case READ_MD:
@@ -1046,7 +1023,7 @@ void sys_tick_handler(void){
 			case INFOS_ID:
  				hid_interrupt = bufferIn[0];
  				break;
-				
+
  			default:
  				hid_interrupt = 1;
 				break;
@@ -1101,131 +1078,128 @@ int main(){
 	AFIO_MAPR = AFIO_MAPR_SWJ_CFG_JTAG_OFF_SW_OFF;
 
  	GPIO_CRL(GPIOA) = 0x33333313; //always ouput (ce, clear etc) expact MARK 3 which is connected to GND on carttridge MD>SMS
- 	
+
     gpio_set_mode(GPIOC, GPIO_MODE_OUTPUT_50_MHZ, GPIO_CNF_OUTPUT_PUSHPULL, LED_PIN);
     gpio_set_mode(GPIOC, GPIO_MODE_OUTPUT_50_MHZ, GPIO_CNF_OUTPUT_PUSHPULL, WE_SRAM);
     GPIOC_BSRR |= WE_SRAM | (LED_PIN<<16); //inhib
-    
+
 	dump_running = 0;
 	dump_running_ms = 0;
     hid_interrupt = 1; // Enable HID Interrupt
-	
+
     while(1){
 
         usbd_poll(usbd_dev);
-		
+
 		if(hid_interrupt!=1){
-			
+
 			switch(hid_interrupt){
 				case WAKEUP:
 		        	memcpy((unsigned char *)bufferOut, (unsigned char *)stmReady, sizeof(stmReady));
 					break;
-				
+
 				case READ_MD: 		//read 16bits
-					if(dump_running){ address += 32; }				
+					if(dump_running){ address += 32; }
 					dump_running = bufferIn[4];
 					readMd();
 					break;
-				
+
 				case READ_MD_SAVE:	//read 8bits
 					readMdSave();
-		            break;	
-		            
+		            break;
+
 				case WRITE_MD_SAVE: //write/erase SRAM
 					writeMdSave();
-					
+
 					readMdSave(); // make a checksum/verif this part can be removed as write is stable
 					buffer_checksum((unsigned char *)bufferOut, bufferIn[4]);
 					memcpy((unsigned char *)bufferOut +2, (unsigned char *)bufferZeroed, 62); //keep checksum only
 		            break;
-		            
+
 		       	case WRITE_MD_FLASH:
 
 					switch(chipid){
-						case 0xC2F9: 
-						case 0xC2F1: 
+						case 0xC2F9:
+						case 0xC2F1:
 	       					//special 29F1610 - buffer 128 bytes (64 words)
 	       					//special 29L3211 - buffer 256 bytes (128 words)
-	       					
+
 							if((buffer256bytes[0]+bufferIn[4]) < bufferSize){
-			       				
+
 			       				memcpy((unsigned char *)bufferMX_256bytes +buffer256bytes[0], (unsigned char *)bufferIn +5, bufferIn[4]);
 								buffer256bytes[0] += bufferIn[4];
-							
+
 							}else{
-			       			
+
 			       				buffer256bytes[1] = ((buffer256bytes[0]+bufferIn[4]) - bufferSize); //save next loop
 			       				buffer256bytes[2] = (bufferIn[4] - buffer256bytes[1]); //to copy
 		       					memcpy((unsigned char *)bufferMX_256bytes +(bufferSize - buffer256bytes[2]), (unsigned char *)bufferIn +5, buffer256bytes[2]);
-			       				
+
 								writeMdFlash_29L3211();
-								
+
 			       				if(buffer256bytes[2]){
 			       					memcpy((unsigned char *)bufferMX_256bytes, (unsigned char *)bufferIn +(5+buffer256bytes[2]), buffer256bytes[1]);
 			       					buffer256bytes[0] = buffer256bytes[1]; //save next offset
 			       					}else{
-			       					buffer256bytes[0] = 0;	
-			       				}       				
+			       					buffer256bytes[0] = 0;
+			       				}
 			       				buffer256bytes[1] = 0; //raz
 			       				buffer256bytes[2] = 0; //raz
 								write_address += (bufferSize/2); //next adr
-		
+
 							}
 							break;
-						
+
 						default:
 							writeMdFlash();
 					}
-						
-			       	break; 
-		       	    
+
+			       	break;
+
 		       	case ERASE_MD_FLASH:
-		       		
 		       		infosId();
-		       		
 					switch(chipid){
-						case 0xC2F1: //29F1610 
+						case 0xC2F1: //29F1610
 							eraseMdFlash_29L3211();
 	       					bufferSize = 128; //value in bytes
 	       					timeoutMx = 22000;
 	       					break;
-	       					
+
 						case 0xC2F9: //29L3211
 							eraseMdFlash_29L3211();
 	       					bufferSize = 256;
 	       					timeoutMx = 18000;
 							break;
-							
+
 						default:
-							eraseMdFlash();	
+							eraseMdFlash();
 					}
 					write_address = 0; //raz
 			       	break;
-				
-				case READ_SMS:					
-					if(dump_running_ms){ address += 64; }else{address = 0;}				
-					dump_running_ms = bufferIn[4];				
+
+				case READ_SMS:
+					if(dump_running_ms){ address += 64; }else{address = 0;}
+					dump_running_ms = bufferIn[4];
 					readSms();
 					break;
-				
+
 		       	case CFI_MODE:
 					memcpy((unsigned char *)bufferOut, (unsigned char *)bufferZeroed, 64);
-					cfiMode();	
+					cfiMode();
 			       	break;
 
-		       	case INFOS_ID: 
+		       	case INFOS_ID:
 		       		memcpy((unsigned char *)bufferOut, (unsigned char *)bufferZeroed, 64);
-					infosId();	
+					infosId();
 			       	break;
-			       	
-			       	
+
+
 
 			}
 			while( usbd_ep_write_packet(usbd_dev, 0x81, bufferOut, 64) != 64);
 			hid_interrupt = 1;
 		}
-		
-	}
-      
-}
 
+	}
+
+}
