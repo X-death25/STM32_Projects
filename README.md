@@ -5,4 +5,6 @@ Led : Simple Led blink.
 
 Megadrive_HID : USB HID Megadrive cartridge Dumper.
 
+Snes_HID : USB HID Super Nintendo/Famicom cartridge Dumper.
+
 SMS_Dumper : USB HID  Master System cartridge Dumper.
