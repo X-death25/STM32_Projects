@@ -46,48 +46,55 @@
 #include <libopencm3/cm3/systick.h>
 #include <libopencm3/cm3/nvic.h>
 
-//  Include Personal Functions
-/*
-#define D0 			GPIO9  // PB9
-#define D1 			GPIO8  // PB8
-#define D2 			GPIO7  // PB7
-#define D3 			GPIO6  // PB6
-#define D4 			GPIO4  // PB4
-#define D5 			GPIO3  // PB3
-#define D6 			GPIO15 // PA15
-#define D7 			GPIO10 // PA10
+//  Snes I/O <> STM32 Definition
 
-#define D8 			GPIO9  // PA9
-#define D9 			GPIO8  // PA8
-#define D10 		GPIO15 // PB15
-#define D11 		GPIO14 // PB14
-#define D12 		GPIO13 // PB13
-#define D13 		GPIO12 // PB12
-#define D14 		GPIO11 // PB11
-#define D15			GPIO10 // PB10
+#define D0 			GPIO0  // PD0   Snes Data lines
+#define D1 			GPIO1  // PD1
+#define D2 			GPIO2  // PD2
+#define D3 			GPIO3  // PD3
+#define D4 			GPIO4  // PD4
+#define D5 			GPIO5  // PD5
+#define D6 			GPIO6  // PD6
+#define D7 			GPIO7  // PD7
 
-#define OE 			GPIO1  // PB1
-#define CE 			GPIO0  // PA0
-#define MARK3 		GPIO1  // PA1
-#define WE_FLASH	GPIO2  // PA2 	/ASEL B26
-#define TIME 		GPIO3  // PA3	/TIME B31
+#define PA0 		GPIO8  // PD8   Snes EXP Address lines
+#define PA1 		GPIO9  // PD9
+#define PA2 		GPIO10 // PD10
+#define PA3 		GPIO11 // PD11
+#define PA4 		GPIO12 // PD12
+#define PA5 		GPIO13 // PD13
+#define PA6 		GPIO14 // PD14
+#define PA7			GPIO15 // PD15
 
-#define CLK_CLEAR 	GPIO4  // PA4
-#define CLK1 		GPIO7  // PA7
-#define CLK2 		GPIO6  // PA6
-#define CLK3 		GPIO5  // PA5
+#define A0 			GPIO0  // PE0   Snes Address lines
+#define A1 			GPIO1  // PE1
+#define A2 		    GPIO2  // PE2
+#define A3 		    GPIO3  // PE3
+#define A4 		    GPIO4  // PE4
+#define A5 		    GPIO5  // PE5
+#define A6 		    GPIO6  // PE6
+#define A7			GPIO7  // PE7
+#define A8			GPIO8  // PE8
+#define A9			GPIO9  // PE9
+#define A10			GPIO10 // PE10
+#define A11			GPIO11 // PE11
+#define A12			GPIO12 // PE12
+#define A13			GPIO13 // PE13
+#define A14			GPIO14 // PE14
+#define A15			GPIO15 // PE15
 
-#define WE_SRAM 	GPIO15 // PC15	/LWR B28
-*/
+#define OE			GPIO8  // PB8   Snes Control lines
+#define CE			GPIO9  // PB9
+#define WE			GPIO10 // PB10
 
-#define LED_PIN 	GPIO13 // PC13
+#define LED_PIN 	GPIO13 // PC13  STM32 Specific
 
 
 // HID Special Command
 
 #define WAKEUP     		0x10
 #define READ_MD     	0x11
-#define READ_MD_SAVE  	0x12
+#define READ_SFC_ROM  	0x12
 #define WRITE_MD_SAVE 	0x13
 #define WRITE_MD_FLASH 	0x14
 #define ERASE_MD_FLASH 	0x15
@@ -100,10 +107,13 @@
 
 unsigned char usbd_control_buffer[5*64];
 
-static unsigned char bufferIn[64] = {0};
-static unsigned char bufferOut[64] = {0};
-static unsigned char hid_interrupt = 0;
-static const unsigned char stmReady[] = {'R','E','A','D','Y','!'};
+
+static uint8_t hid_buffer_IN[64];
+static uint8_t hid_buffer_OUT[64];
+static uint8_t temp_buffer[64];
+
+static uint8_t hid_interrupt=0;
+static unsigned long address = 0;
 static usbd_device *usbd_dev;
 
 
@@ -113,6 +123,7 @@ void wait(int nb){
     while(nb){ __asm__("nop"); nb--;}
 }
 
+
 void setDataInput(){
     GPIO_CRL(GPIOD) = 0x44444444;
 }
@@ -120,6 +131,130 @@ void setDataInput(){
 void setDataOutput(){
     GPIO_CRL(GPIOD) = 0x33333333;
 }
+
+void directWrite8(unsigned char val)
+{
+  GPIOD_BSRR = val & 0xFF;
+}
+
+unsigned char directRead8()
+{
+  return GPIOD_IDR & 0xFF;
+}
+
+static void gpio_setup(void)
+{
+  // OUT From STM32 to Snes
+  gpio_set_mode(GPIOB, GPIO_MODE_OUTPUT_50_MHZ, GPIO_CNF_OUTPUT_PUSHPULL,OE | CE | WE);
+  gpio_set_mode(GPIOE, GPIO_MODE_OUTPUT_50_MHZ, GPIO_CNF_OUTPUT_PUSHPULL,A0 | A1 | A2 | A3 | A4 | A5 | A6 | A7 );
+  gpio_set_mode(GPIOE, GPIO_MODE_OUTPUT_50_MHZ, GPIO_CNF_OUTPUT_PUSHPULL,A8 | A9 | A10 | A11 | A12 | A13 | A14 | A15 );
+  // Set Control lines "1" and Adress Lines "0"
+  GPIOB_BSRR |= OE | CE | WE; // "1"
+  GPIOE_BRR = 0xFFFF; // "0"
+  setDataOutput();
+  directWrite8(0x00);
+  setDataInput();
+}
+
+void SetAddress(unsigned long adr)
+{
+GPIOE_BRR = 0xFFFF; // "0"
+GPIOE_BSRR = adr;
+}
+
+void WriteFlashByte(unsigned long address,unsigned char val)
+{
+GPIOB_BSRR |= CE;
+GPIOB_BSRR |= WE;
+SetAddress(address);
+wait(1);
+GPIOB_BRR |= CE;
+GPIOB_BRR |= WE;
+setDataOutput();
+directWrite8(val);
+wait(1);
+GPIOB_BSRR |= WE;
+GPIOB_BSRR |= CE;
+setDataInput();
+}
+/*
+unsigned char ReadFlash(unsigned long address)
+{
+unsigned char byte = 0;
+GPIOB_BSRR |= CE;
+GPIOB_BSRR |= OE;
+	SetAddress(address);
+	wait(4);
+	GPIOB_BRR |= CE;
+	GPIOB_BRR |= OE;
+	wait(4);
+	setDataInput();
+	wait(4);
+	byte = directRead8();
+	wait(4);
+	GPIOB_BSRR |= CE;
+	wait(4);
+	GPIOB_BSRR |= OE;
+    return byte;
+}*/
+
+void ReadFlash()
+{
+unsigned char adr = 0;
+GPIOB_BSRR |= CE;
+GPIOB_BSRR |= OE;
+while (adr<64)
+ {
+	SetAddress(address+adr);
+    setDataInput();
+	GPIOB_BRR |= CE;
+	GPIOB_BRR |= OE;
+	wait(16);
+    directRead8();
+	temp_buffer[adr] = directRead8();
+	GPIOB_BSRR |= CE;
+	GPIOB_BSRR |= OE;
+    adr++;
+ }
+}
+
+void ReadSFCHeader(void)
+{
+     // HID OUT Buffer clean
+
+    for (unsigned int i = 0; i < 64; i++)
+    {
+        hid_buffer_OUT[i]=0x00;
+        temp_buffer[i]=0x00;
+    }
+
+address=32704; // fix adress offset
+/*
+SetAddress(2);
+SetAddress(3);*/
+ReadFlash();
+/*
+    
+   // Read Header ROM
+
+ for (unsigned int i = 0; i < 16; i++)
+    {
+       temp_buffer[i] = ReadFlash(i);
+    }
+
+
+setDataInput();
+
+  for (unsigned int i = 0; i < 64; i++)
+    {
+        temp_buffer[i]=directRead8();
+    } 
+
+setDataOutput();*/
+
+}
+
+
 
 
 /// Specific USB Function ///
@@ -392,35 +527,47 @@ void usb_wakeup_isr(void){
 
 /// Interrupt Function Called Every Ticks ///
 
+// Function Called Every Ticks
+
 void sys_tick_handler(void)
 {
+    if (hid_interrupt ==1)
+    {
+        usbd_ep_read_packet(usbd_dev,0x01,hid_buffer_IN,sizeof(hid_buffer_IN));
 
-    if(hid_interrupt == 1)
-     {
-
-    	bufferIn[0] = 0;
-		usbd_ep_read_packet(usbd_dev, 0x01, bufferIn, 64);
-
-		switch(bufferIn[0])
+        if (hid_buffer_IN[0] == 0x08 ) // HID Command Send SFC Header
         {
-	 		case WAKEUP:
-	 		case READ_MD:
-	 		case READ_MD_SAVE:
-	 		case WRITE_MD_SAVE:
-	 		case WRITE_MD_FLASH:
-	 		case ERASE_MD_FLASH:
-	 		case READ_SMS:
-	 		case CFI_MODE:
-			case INFOS_ID:
- 				hid_interrupt = bufferIn[0];
- 				break;
+            hid_interrupt = 0x08;
+        }
 
- 			default:
- 				hid_interrupt = 1;
-				break;
-		}
-      }
+        if (hid_buffer_IN[0] == 0x09  ) // HID Command Read16
+        {
+            hid_interrupt = 0x09;
+        }
+
+        if (hid_buffer_IN[0] == 0x0A  ) // HID Command Read8
+        {
+            hid_interrupt = 0x0A;
+        }
+
+        if (hid_buffer_IN[0] == 0x0B  ) // HID Command Erase8
+        {
+            hid_interrupt = 0x0B;
+        }
+
+        if (hid_buffer_IN[0] == 0x0D  ) // HID Command Write8
+        {
+            hid_interrupt = 0x0D;
+        }
+
+        if (hid_buffer_IN[0] == 0x0E  ) // HID Command DumpSMS
+        {
+            hid_interrupt = 0x0E;
+        }
+    }
+
 }
+
 
 
 /// Main Program Function  ///
@@ -479,35 +626,27 @@ for(unsigned long i = 0; i < 0x800000; i++){ __asm__("nop"); } //1sec
 
 	// GPIO Test LED
 
-	setDataOutput();   // PD0-7 OUT
-    GPIOD_BSRR = 0xFF; // PD0-7 "1"
-	//GPIOD_BRR = 0xFF; // PD0-7 "0"
+    // gpio_set(GPIOB, GPIO8);	/* LED on/off */
 
-//GPIO_CRH(GPIOB) = 0x33333333;
- //GPIOB_BSRR = 0xFF; // PD0-7 "1"
+	gpio_setup();
 
-   
-//gpio_set_mode(GPIOB, GPIO_MODE_OUTPUT_50_MHZ, GPIO_CNF_OUTPUT_PUSHPULL,GPIO8);
-// gpio_set(GPIOB, GPIO8);	/* LED on/off */
-//GPIOB_BSRR |= GPIO8;
-	
+    // HID OUT Buffer clean
 
-     hid_interrupt = 1; // Enable HID Interrupt
+    ReadSFCHeader(); // Read some cool stuff
+    hid_interrupt = 1; // Enable HID Interrupt
 
     while(1)
-     {
+    {
         usbd_poll(usbd_dev);
-	     if(hid_interrupt!=1)
-           {
-			switch(hid_interrupt)
-              {
-				case WAKEUP:
-		        	memcpy((unsigned char *)bufferOut, (unsigned char *)stmReady, sizeof(stmReady));
-					break;
-				}
-               while( usbd_ep_write_packet(usbd_dev, 0x81, bufferOut, 64) != 64);
-			   hid_interrupt = 1;
-            }
-      }
+
+
+        if (hid_interrupt == 0x08)  // Send SFC Header
+        {
+            hid_interrupt=0; // Disable HID Interrupt
+            usbd_ep_write_packet(usbd_dev, 0x81,temp_buffer, sizeof(temp_buffer));
+            hid_buffer_IN[0]=0;
+            hid_interrupt=1; // Enable HID Interrupt
+        }
+    }
 }
 			

@@ -44,168 +44,53 @@
 
 // HID Special Command
 
-#define WAKEUP     		0x10
-#define READ_MD     	0x11
-#define READ_MD_SAVE  	0x12
-#define WRITE_MD_SAVE 	0x13
-#define WRITE_MD_FLASH 	0x14
-#define ERASE_MD_FLASH 	0x15
-#define READ_SMS   		0x16
-#define CFI_MODE	 	0x17
-#define INFOS_ID	 	0x18
+#define WakeUP     0x08  // WakeUP for first STM32 Communication
+#define Read16     0x09  // Read16 : Read Page (64 byte) in 16 bit mode
+#define Read8      0x0A  // Read8  : Read Page (64 byte) in 8 bit mode
+#define Erase8     0x0B  // Erase8 : Erase Page (64 byte) in 8 bit mode
+#define Erase16    0x0C  // Erase16: Erase Page (64 byte) in 16 bit mode
+#define Write8     0x0D  // Write8  :Write Page (32 byte) in 8 bit mode
+#define ReadSMS    0x0E  // DumpSFC : Dump SFC cartridge
 
-const int flash_algo[] = {	0,
-							1,
-							2,
-							3,
-							4,
-							256,
-							257,
-							258};
-
-const char * flash_algo_msg[] ={"no Alternate Vendor specified",
-								"Intel/Sharp Extended Command Set",
-								"AMD/Fujitsu Standard Command Set",
-								"Intel Standard Command Set",
-								"AMD/Fujitsu Extended Command Set",
-								"Mitsubishi Standard Command Set",
-								"Mitsubishi Extended Command Set",
-								"SST Page Write Command Set"};
-
-const char * flash_device_description[] = {	"x8-only asynchronous",
-											"x16-only asynchronous",
-											"x8, x16 asynchronous",
-											"x32-only asynchronous",
-											"x16, x32 asynchronous"};
-
-const char * wheel[] = { "-","\\","|","/"}; //erase wheel
-
-const char * save_msg[] = {	"WRITE SFC save",  //0
-							"ERASE SFC save"}; //1
-
-const char * flash_msg[] = {"WRITE SFC flash",  //0
-							"ERASE SFC flash"}; //1
-
-const char * menu_msg[] = {	"\n --- DUMP ROM MODE --- \n",
-							"\n --- DUMP SAVE MODE ---\n",
-							"\n --- WRITE SFC SAVE ---\n",
-							"\n --- ERASE SFC SAVE ---\n",
-							"\n --- WRITE SFC FLASH ---\n",
-							"\n --- ERASE SFC FLASH ---\n",
-							"\n --- DUMP SMS ROM ---\n",
-							"\n --- CFI MODE ---\n",
-							"\n --- INFOS ID ---\n"};
-
-
-char * game_rom = NULL;
-char * game_name = NULL;
-
-const char unk[] = {"unknown"};
-
-int array_search(unsigned int find, const int * tab, int inc, int tab_size){
-	int i=0;
-	for(i=0; i<tab_size; (i+=inc)){
-		if(tab[i] == find){
-			#if defined(DEBUG)
-				printf("\n tab:%X find:%X, i:%d, i/inc:%d", tab[i], find, i, (i/inc));
-			#endif
-			return i;
-		}
-	}
-	return -1; //nothing found
+void pause(char const *message)
+{
+    int c;
+ 
+    printf("%s", message);
+    fflush(stdout);
+ 
+    while ((c = getchar()) != '\n' && c != EOF)
+    {
+    }
 }
-
-
-unsigned int trim(unsigned char * buf, unsigned char is_out){
-    unsigned char i=0, j=0;
-	unsigned char tmp[49] = {0}; //max
-	unsigned char tmp2[49] = {0}; //max
-	unsigned char next = 1;
-
-	/*check ascii remove unwanted ones and transform upper to lowercase*/
-	if(is_out){
-		while(i<48){
-			if(buf[i]<0x30 || buf[i]>0x7A || (buf[i]>0x29 && buf[i]<0x41) || (buf[i]>0x5A && buf[i]<0x61)) buf[i] = 0x20; //remove shiiit
-			if(buf[i]>0x40 && buf[i]<0x5B) buf[i] += 0x20; //to lower case A => a
-		i++;
-		}
-		i=0;
-	}
-
-    while(i<48){
-	    if(buf[i]!=0x20){
-	       	if(buf[i]==0x2F) buf[i] = '-';
-	       	tmp[j]=buf[i];
-	       	tmp2[j]=buf[i];
-	       	next = 1;
-	        j++;
-		}else{
-	       	if(next){
-				tmp[j]=0x20;
-				tmp2[j]='_';
-				next = 0;
-		       	j++;
-	       	}
-	    }
-	 	i++;
-     }
-
-     next=0;
-     if(tmp2[0]=='_'){ next=1; } //offset
-     if(tmp[(j-1)]==0x20){ tmp[(j-1)] = tmp2[(j-1)]='\0'; }else{ tmp[j] = tmp2[j]='\0'; }
-
-	 if(is_out){ //+4 for extension
-	 	game_rom = (char *)malloc(j-next +4);
-		memcpy((unsigned char *)game_rom, (unsigned char *)tmp2 +next, j-next); //stringed file
-	 }
-
-	 game_name = (char *)malloc(j-next);
-	 memcpy((unsigned char *)game_name, (unsigned char *)tmp +next, j-next); //trimmed
-     return 0;
-}
-
-
-int checksum(unsigned char * buf, int offset, unsigned char length){
-	int i = 0;
-	int check = 0;
-	for(i=0;i<length;i++){
-		check += buf[i+offset];
-	}
-	return check;
-}
-
-
-
-
-#if defined(OS_LINUX) || defined(OS_MACOSX)
-	struct timeval ostime;
-	long microsec_start = 0;
-	long microsec_end = 0;
-#elif defined(OS_WINDOWS)
-	clock_t microsec_start;
-	clock_t microsec_end;
-#endif
-
-
-void timer_start(){
-
-	#if defined(OS_LINUX) || defined(OS_MACOSX)
-		gettimeofday(&ostime, NULL);
-		microsec_start = ((unsigned long long)ostime.tv_sec * 1000000) + ostime.tv_usec;
-	#elif defined(OS_WINDOWS)
-		microsec_start = clock();
-	#endif
-
-}
-
 
 int main()
 {
-    int connection = 1;
-    int check;
-    unsigned char hid_command[64] = {0};
-    unsigned char *buffer_rom = NULL;
-	int i,j=0;
+
+    // Program Var
+    int  r, num;
+    unsigned char buf[64];
+    int choixMenu=0;
+    int ReadOK=1;
+    int Taille_Roms=0;
+    unsigned long address=0;
+    unsigned long i=0;
+    unsigned long j=0;
+    unsigned char octetActuel=0;
+    
+    // Rom Header info
+    unsigned char Game_Name[21];
+    unsigned char Rom_Type=0;
+    unsigned long Rom_Size=0;
+    unsigned char Rom_Version=0;
+
+    // HID Command Buffer & Var
+    unsigned char HIDCommand [64];
+    unsigned char *BufferROM;
+    unsigned char *BufferSave;
+    unsigned long Gamesize=0;
+
+ FILE *myfile;
 
     printf(" ---------------------------------\n");
     printf(" SUPER NINTENDO/FAMICOM USB Dumper\n");
@@ -225,38 +110,94 @@ int main()
 
     printf(" Detecting Snes Dumper... \n");
 
-    check = rawhid_open(1, 0x0483, 0x5750, -1, -1);
-    if (check <= 0){
-        check = rawhid_open(1, 0x0483, 0x5750, -1, -1);
-        if (check <= 0){
-            printf(" Snes Dumper not found!\n\n");
-            return 0;
+    r = rawhid_open(1, 0x0483, 0x5750,-1, -1);
+    if (r <= 0)
+    {
+
+        r = rawhid_open(1, 0x0483, 0x5750,-1, -1);
+        if (r <= 0)
+        {
+            printf("No hid device found\n");
+            scanf("%d", &choixMenu);
+            return -1;
         }
     }
 
+    printf(" found HID Snes Dumper ! \n");
+    printf(" Receiving header info ...\n\n");
 
-	j=0;
+    HIDCommand[0] = WakeUP; // Select WakeUP Command
+    rawhid_send(0,HIDCommand,64,15);;
 
-    printf(" Snes Dumper found! \n");
 
-	buffer_rom = (unsigned char *)malloc(0x200);
-    hid_command[0] = WAKEUP;
-    rawhid_send(0, hid_command, 64, 30);
+    while (ReadOK !=0)
+    {
 
-  while(connection)
-   {
-        check = rawhid_recv(0, buffer_rom, 64, 30);
-		printf(" %.*s\n", 6, buffer_rom);
-
-        if(check < 0){
-            printf("\n Error reading, device went offline\n\n");
+        num = rawhid_recv(0, buf, 64,15);
+        if (num < 0)
+        {
+            printf("\nerror reading, device went offline\n");
             rawhid_close(0);
-            free(buffer_rom);
             return 0;
+        }
+        if (num > 0)
+        {
+           // a commenter
+            for (i=0; i<num; i++) {
+            	printf("%02X ", buf[i] & 255);
+            	if (i % 16 == 15 && i < num-1) printf("\n");
             }
-        else{     	
-            connection=0;
-            }
+            printf("\n");
+            ReadOK=0;
+        }
     }
+    // Backup header info
+   
+   for (i=0; i<21; i++) {Game_Name[i]=buf[i];} // ROM Name
+   Rom_Type=buf[21]; // Cartridge Format
+   Rom_Size= (0x400 << buf[23]); // Rom Size
+   Rom_Version=buf[60];
+
+   // Display header info
+
+  // printf("\nGame name is : %s",Game_Name);
+printf("\nGame name is :  %.*s",21,(char *) Game_Name);
+if ( (Rom_Type & 0x01) == 1){printf("\nCartridge format is : HiROM");}
+else {printf("\nCartridge format is : LoROM");}
+printf("\nGame Size is :  %ld Ko",Rom_Size/1024);
+printf("\nGame Version is :  %ld ",Rom_Version);
+printf("\nHeader Checksum is : %02X%02X ",buf[31],buf[30]);
+printf("\nComplement Checksum is : %02X%02X ",buf[29],buf[28]);
+
+   printf("\n\n --- MENU ---\n");
+    printf(" 1) Dump SFC ROM\n");				//MD
+    printf(" Your choice: \n");
+    scanf("%d", &choixMenu);
+
+switch(choixMenu)
+{
+
+  case 1:  // READ SFC ROM
+
+        choixMenu=0;
+        printf(" Enter number of KB to dump: ");
+        scanf("%d", &Gamesize);
+       /*
+
+  		rawhid_close(0);
+        myfile = fopen("dump_sfc.bin","wb");
+        fwrite(buffer_rom, 1, game_size, myfile);
+        fclose(myfile);*/
+        break;
   
+
+default:
+        rawhid_close(0);
+   		return 0;
+}
+ 
+
+
+
+ 
 }
