@@ -229,29 +229,7 @@ void ReadSFCHeader(void)
     }
 
 address=32704; // fix adress offset
-/*
-SetAddress(2);
-SetAddress(3);*/
 ReadFlash();
-/*
-    
-   // Read Header ROM
-
- for (unsigned int i = 0; i < 16; i++)
-    {
-       temp_buffer[i] = ReadFlash(i);
-    }
-
-
-setDataInput();
-
-  for (unsigned int i = 0; i < 64; i++)
-    {
-        temp_buffer[i]=directRead8();
-    } 
-
-setDataOutput();*/
-
 }
 
 
@@ -643,6 +621,16 @@ for(unsigned long i = 0; i < 0x800000; i++){ __asm__("nop"); } //1sec
         if (hid_interrupt == 0x08)  // Send SFC Header
         {
             hid_interrupt=0; // Disable HID Interrupt
+            usbd_ep_write_packet(usbd_dev, 0x81,temp_buffer, sizeof(temp_buffer));
+            hid_buffer_IN[0]=0;
+            hid_interrupt=1; // Enable HID Interrupt
+        }
+
+        if (hid_interrupt == 0x0A)   // Read in 8 bit mode
+        {
+            hid_interrupt=0;  // Disable HID Interrupt
+            address = hid_buffer_IN[1] |  (hid_buffer_IN[2] << 8 ) |  (hid_buffer_IN[3]<< 16) | (hid_buffer_IN[4]  << 24 );
+      	    ReadFlash();
             usbd_ep_write_packet(usbd_dev, 0x81,temp_buffer, sizeof(temp_buffer));
             hid_buffer_IN[0]=0;
             hid_interrupt=1; // Enable HID Interrupt

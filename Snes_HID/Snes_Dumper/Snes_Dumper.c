@@ -72,11 +72,9 @@ int main()
     unsigned char buf[64];
     int choixMenu=0;
     int ReadOK=1;
-    int Taille_Roms=0;
     unsigned long address=0;
     unsigned long i=0;
-    unsigned long j=0;
-    unsigned char octetActuel=0;
+
     
     // Rom Header info
     unsigned char Game_Name[21];
@@ -87,7 +85,6 @@ int main()
     // HID Command Buffer & Var
     unsigned char HIDCommand [64];
     unsigned char *BufferROM;
-    unsigned char *BufferSave;
     unsigned long Gamesize=0;
 
  FILE *myfile;
@@ -127,7 +124,7 @@ int main()
     printf(" Receiving header info ...\n\n");
 
     HIDCommand[0] = WakeUP; // Select WakeUP Command
-    rawhid_send(0,HIDCommand,64,15);;
+    rawhid_send(0,HIDCommand,64,15);
 
 
     while (ReadOK !=0)
@@ -165,13 +162,13 @@ printf("\nGame name is :  %.*s",21,(char *) Game_Name);
 if ( (Rom_Type & 0x01) == 1){printf("\nCartridge format is : HiROM");}
 else {printf("\nCartridge format is : LoROM");}
 printf("\nGame Size is :  %ld Ko",Rom_Size/1024);
-printf("\nGame Version is :  %ld ",Rom_Version);
+printf("\nGame Version is :  %d ",Rom_Version);
 printf("\nHeader Checksum is : %02X%02X ",buf[31],buf[30]);
 printf("\nComplement Checksum is : %02X%02X ",buf[29],buf[28]);
 
-   printf("\n\n --- MENU ---\n");
+   printf("\n\n --- MENU ---\n\n");
     printf(" 1) Dump SFC ROM\n");				//MD
-    printf(" Your choice: \n");
+    printf("\nYour choice: \n");
     scanf("%d", &choixMenu);
 
 switch(choixMenu)
@@ -180,14 +177,40 @@ switch(choixMenu)
   case 1:  // READ SFC ROM
 
         choixMenu=0;
-        printf(" Enter number of KB to dump: ");
-        scanf("%d", &Gamesize);
-       /*
+        printf("Enter number of KB to dump: ");
+        scanf("%ld", &Gamesize);
+        printf("Sending command Dump ROM \n");
+        printf("Dumping please wait ...\n");
+        HIDCommand[0] = 0x0A; // Select Read in 8 bit Mode
+        BufferROM = (unsigned char*)malloc(1024*Gamesize);
+        // Cleaning Buffer
+        for (i=0; i<1024*Gamesize; i++)
+        {
+            BufferROM[i]=0x00;
+        }
 
-  		rawhid_close(0);
-        myfile = fopen("dump_sfc.bin","wb");
-        fwrite(buffer_rom, 1, game_size, myfile);
-        fclose(myfile);*/
+            address=0;
+           
+       while (address < 1024*Gamesize )
+
+        {
+
+            HIDCommand[1]=address & 0xFF;
+            HIDCommand[2]=(address & 0xFF00)>>8;
+            HIDCommand[3]=(address & 0xFF0000)>>16;
+            HIDCommand[4]=(address & 0xFF000000)>>24;
+            rawhid_send(0, HIDCommand, 64, 15);
+            rawhid_recv(0,(BufferROM+address), 64,15);
+            address +=64 ;
+           printf("\rROM dump in progress: %ld%% (adr: 0x%1X)",(100*address)/Gamesize/1024,address);
+           fflush(stdout);
+        }
+
+        printf("\nDump ROM completed !\n");
+         myfile = fopen("dump_sfc.bin","wb");
+        fwrite(BufferROM, 1,1024*Gamesize, myfile);
+        rawhid_close(0);
+        fclose(myfile);
         break;
   
 
