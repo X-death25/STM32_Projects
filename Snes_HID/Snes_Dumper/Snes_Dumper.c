@@ -72,15 +72,18 @@ int main()
     unsigned char buf[64];
     int choixMenu=0;
     int ReadOK=1;
+    int Retry=0;
     unsigned long address=0;
     unsigned long i=0;
-
     
     // Rom Header info
+
     unsigned char Game_Name[21];
     unsigned char Rom_Type=0;
     unsigned long Rom_Size=0;
     unsigned char Rom_Version=0;
+	unsigned char Rom_Region=0;
+    unsigned char Rom_Hardware=0;
 
     // HID Command Buffer & Var
     unsigned char HIDCommand [64];
@@ -123,9 +126,17 @@ int main()
     printf(" found HID Snes Dumper ! \n");
     printf(" Receiving header info ...\n\n");
 
-    HIDCommand[0] = WakeUP; // Select WakeUP Command
-    rawhid_send(0,HIDCommand,64,15);
+   			 HIDCommand[0] = WakeUP; // Select WakeUP Command
+    		 rawhid_send(0,HIDCommand,64,15);
 
+        /*  HIDCommand[0] = 0x0A; // Select Read in 8 bit Mode
+          address=32704;
+                  HIDCommand[1]=address & 0xFF;
+            HIDCommand[2]=(address & 0xFF00)>>8;
+            HIDCommand[3]=(address & 0xFF0000)>>16;
+            HIDCommand[4]=(address & 0xFF000000)>>24;
+            rawhid_send(0, HIDCommand, 64, 15);*/
+		
 
     while (ReadOK !=0)
     {
@@ -152,22 +163,31 @@ int main()
    
    for (i=0; i<21; i++) {Game_Name[i]=buf[i];} // ROM Name
    Rom_Type=buf[21]; // Cartridge Format
+   Rom_Hardware=buf[22]; // Cartridge Additional Hardware
    Rom_Size= (0x400 << buf[23]); // Rom Size
-   Rom_Version=buf[60];
+   Rom_Region=buf[25];
+   Rom_Version=buf[26];
 
    // Display header info
 
   // printf("\nGame name is : %s",Game_Name);
-printf("\nGame name is :  %.*s",21,(char *) Game_Name);
-if ( (Rom_Type & 0x01) == 1){printf("\nCartridge format is : HiROM");}
-else {printf("\nCartridge format is : LoROM");}
+printf("\nGame name :  %.*s",21,(char *) Game_Name);
+if ( (Rom_Type & 0x01) == 1){printf("\nCartridge format : HiROM");}
+else {printf("\nROM Map : LoROM");}
 printf("\nGame Size is :  %ld Ko",Rom_Size/1024);
-printf("\nGame Version is :  %d ",Rom_Version);
-printf("\nHeader Checksum is : %02X%02X ",buf[31],buf[30]);
-printf("\nComplement Checksum is : %02X%02X ",buf[29],buf[28]);
+if ( (Rom_Type >> 4 & 0x03) == 3){printf("\nROM Speed : FastROM");}
+if (Rom_Hardware == 0){printf("\nAdditional Hardware : NO");}
+if (Rom_Region == 0){printf("\nGame Region : Japan");}
+else if (Rom_Region == 1){printf("\nGame Region : USA");}
+else if (Rom_Region == 2){printf("\nGame Region : Europe");}
+else {printf("\nGame Region is : Unknown");}
+printf("\nGame Version :  %d ",Rom_Version);
+printf("\nHeader Checksum : %02X%02X ",buf[31],buf[30]);
+printf("\nComplement Checksum : %02X%02X ",buf[29],buf[28]);
 
    printf("\n\n --- MENU ---\n\n");
-    printf(" 1) Dump SFC ROM\n");				//MD
+    printf(" 1) Dump SFC ROM\n");				//SFC
+    printf(" 2) Debug\n");				//SFC
     printf("\nYour choice: \n");
     scanf("%d", &choixMenu);
 
@@ -212,6 +232,34 @@ switch(choixMenu)
         rawhid_close(0);
         fclose(myfile);
         break;
+
+case 2:  // DEBUG
+
+	    HIDCommand[0] = 0x0A; // Select Read in 8 bit Mode
+        rawhid_send(0, HIDCommand, 64, 15);
+        num = rawhid_recv(0,buf, 64,15);
+        while (1)
+        {
+            printf("\n\nEnter ROM Address ( decimal value) :\n \n");
+            scanf("%ld",&address);
+           // address = address/2; // 16 bits read
+            HIDCommand[1]=address & 0xFF;
+            HIDCommand[2]=(address & 0xFF00)>>8;
+            HIDCommand[3]=(address & 0xFF0000)>>16;
+            HIDCommand[4]=(address & 0xFF000000)>>24;
+
+            rawhid_send(0, HIDCommand, 64, 15);
+            num = rawhid_recv(0,buf, 64,15);
+            if (num > 0)
+            {
+                printf("\n\n", num);
+                for (i=0; i<num; i++)
+                {
+                    printf("%02X ", buf[i] & 255);
+                    if (i % 16 == 15 && i < num-1) printf("\n");
+                }
+            }
+        }
   
 
 default:

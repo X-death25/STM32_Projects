@@ -66,6 +66,15 @@
 #define PA6 		GPIO14 // PD14
 #define PA7			GPIO15 // PD15
 
+#define BA0 		GPIO0  // PA0   Snes Bank lines
+#define BA1 		GPIO1  // PA1
+#define BA2 		GPIO2  // PA2
+#define BA3 		GPIO3  // PA3
+#define BA4 		GPIO4  // PA4
+#define BA5 		GPIO5  // PA5
+#define BA6 		GPIO6  // PA6
+#define BA7 		GPIO7  // PA7
+
 #define A0 			GPIO0  // PE0   Snes Address lines
 #define A1 			GPIO1  // PE1
 #define A2 		    GPIO2  // PE2
@@ -83,7 +92,7 @@
 #define A14			GPIO14 // PE14
 #define A15			GPIO15 // PE15
 
-#define OE			GPIO8  // PB8   Snes Control lines
+#define OE			GPIO6  // PB8   Snes Control lines
 #define CE			GPIO9  // PB9
 #define WE			GPIO10 // PB10
 
@@ -146,11 +155,13 @@ static void gpio_setup(void)
 {
   // OUT From STM32 to Snes
   gpio_set_mode(GPIOB, GPIO_MODE_OUTPUT_50_MHZ, GPIO_CNF_OUTPUT_PUSHPULL,OE | CE | WE);
+  gpio_set_mode(GPIOA, GPIO_MODE_OUTPUT_50_MHZ, GPIO_CNF_OUTPUT_PUSHPULL,BA0 | BA1 | BA2 | BA3 | BA4 | BA5 | BA6 | BA7 );
   gpio_set_mode(GPIOE, GPIO_MODE_OUTPUT_50_MHZ, GPIO_CNF_OUTPUT_PUSHPULL,A0 | A1 | A2 | A3 | A4 | A5 | A6 | A7 );
-  gpio_set_mode(GPIOE, GPIO_MODE_OUTPUT_50_MHZ, GPIO_CNF_OUTPUT_PUSHPULL,A8 | A9 | A10 | A11 | A12 | A13 | A14 | A15 );
+  gpio_set_mode(GPIOE, GPIO_MODE_OUTPUT_50_MHZ, GPIO_CNF_OUTPUT_PUSHPULL,A8 | A9 | A10 | A11 | A12 | A13 | A14 | A15);
   // Set Control lines "1" and Adress Lines "0"
   GPIOB_BSRR |= OE | CE | WE; // "1"
-  GPIOE_BRR = 0xFFFF; // "0"
+  GPIOE_BRR = 0xFFFF; // "0" to Snes Adress lines
+  GPIOA_BRR = 0xFFFF; // "0" to Snes Bank lines
   setDataOutput();
   directWrite8(0x00);
   setDataInput();
@@ -159,7 +170,9 @@ static void gpio_setup(void)
 void SetAddress(unsigned long adr)
 {
 GPIOE_BRR = 0xFFFF; // "0"
+GPIOA_BRR = 0xFFFF; // "0"
 GPIOE_BSRR = adr;
+GPIOA_BSRR = adr >> 15; // Set LoRom Banks
 }
 
 void WriteFlashByte(unsigned long address,unsigned char val)
@@ -210,6 +223,7 @@ while (adr<64)
 	GPIOB_BRR |= CE;
 	GPIOB_BRR |= OE;
 	wait(16);
+    //wait(10);
     directRead8();
 	temp_buffer[adr] = directRead8();
 	GPIOB_BSRR |= CE;
@@ -228,7 +242,10 @@ void ReadSFCHeader(void)
         temp_buffer[i]=0x00;
     }
 
+
 address=32704; // fix adress offset
+//SetAddress(0);
+//address=0; // fix adress offset
 ReadFlash();
 }
 
