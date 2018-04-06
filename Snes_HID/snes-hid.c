@@ -123,6 +123,8 @@ static uint8_t temp_buffer[64];
 
 static uint8_t hid_interrupt=0;
 static unsigned long address = 0;
+static unsigned char Game_Type = 0;
+static unsigned long Game_Size = 0;
 static usbd_device *usbd_dev;
 
 
@@ -172,7 +174,9 @@ void SetAddress(unsigned long adr)
 GPIOE_BRR = 0xFFFF; // "0"
 GPIOA_BRR = 0xFFFF; // "0"
 GPIOE_BSRR = adr;
-GPIOA_BSRR = adr >> 15; // Set LoRom Banks
+if (Game_Type == 1 && Game_Size <=1024*1024){GPIOA_BSRR = adr >> 15;GPIOA_BRR |= BA5;} // Support LoROM <= 1Mo
+if (Game_Type == 1 && Game_Size > 1024*1024) {GPIOA_BSRR = adr >> 15;} // Support LoROM > 1Mo
+
 }
 
 void WriteFlashByte(unsigned long address,unsigned char val)
@@ -242,11 +246,10 @@ void ReadSFCHeader(void)
         temp_buffer[i]=0x00;
     }
 
-
-address=32704; // fix adress offset
-//SetAddress(0);
-//address=0; // fix adress offset
+address=32704; // fix adress offset for LoROM
 ReadFlash();
+if (temp_buffer[21] == 0x30){Game_Type=1;} // LoROM Detected
+if (Game_Type == 1) {Game_Size=(0x400 << temp_buffer[23]);} // if we have a Lorom Cartridge we must know ROM size
 }
 
 
