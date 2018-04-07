@@ -176,7 +176,7 @@ GPIOA_BRR = 0xFFFF; // "0"
 GPIOE_BSRR = adr;
 if (Game_Type == 1 && Game_Size <=1024*1024){GPIOA_BSRR = adr >> 15;GPIOA_BRR |= BA5;} // Support LoROM <= 1Mo
 if (Game_Type == 1 && Game_Size > 1024*1024) {GPIOA_BSRR = adr >> 15;} // Support LoROM > 1Mo
-
+if (Game_Type == 0) {GPIOA_BSRR = adr >> 16;} // HiROM Detected
 }
 
 void WriteFlashByte(unsigned long address,unsigned char val)
@@ -250,6 +250,7 @@ address=32704; // fix adress offset for LoROM
 ReadFlash();
 if (temp_buffer[21] == 0x30){Game_Type=1;} // LoROM Detected
 if (Game_Type == 1) {Game_Size=(0x400 << temp_buffer[23]);} // if we have a Lorom Cartridge we must know ROM size
+if (Game_Type == 0) {address=65472;ReadFlash();} // HiROM Detected
 }
 
 
