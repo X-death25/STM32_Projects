@@ -24,12 +24,16 @@
 
 #define WAKEUP  0x10  // WakeUP for first STM32 Communication
 #define READ_MD 0x11
+#define READ_MD_SAVE 0x12
+#define WRITE_MD_SAVE 0x13
 
 // Sega Dumper Specific Variable
 
 char * game_rom = NULL;
 char * game_name = NULL;
 const char unk[] = {"unknown"};
+const char * save_msg[] = {	"WRITE SMD save",  //0
+							"ERASE SMD save"}; //1
 
 // Sega Dumper Specific Function
 
@@ -43,6 +47,67 @@ void pause(char const *message)
     while ((c = getchar()) != '\n' && c != EOF)
     {
     }
+}
+
+int array_search(unsigned int find, const int * tab, int inc, int tab_size){
+	int i=0;
+	for(i=0; i<tab_size; (i+=inc)){
+		if(tab[i] == find){
+			#if defined(DEBUG)
+				printf("\n tab:%X find:%X, i:%d, i/inc:%d", tab[i], find, i, (i/inc));
+			#endif
+			return i;
+		}
+	}
+	return -1; //nothing found
+}
+
+unsigned int trim(unsigned char * buf, unsigned char is_out){
+    unsigned char i=0, j=0;
+	unsigned char tmp[49] = {0}; //max
+	unsigned char tmp2[49] = {0}; //max
+	unsigned char next = 1;
+
+	/*check ascii remove unwanted ones and transform upper to lowercase*/
+	if(is_out){
+		while(i<48){
+			if(buf[i]<0x30 || buf[i]>0x7A || (buf[i]>0x29 && buf[i]<0x41) || (buf[i]>0x5A && buf[i]<0x61)) buf[i] = 0x20; //remove shiiit
+			if(buf[i]>0x40 && buf[i]<0x5B) buf[i] += 0x20; //to lower case A => a
+		i++;
+		}
+		i=0;
+	}
+
+    while(i<48){
+	    if(buf[i]!=0x20){
+	       	if(buf[i]==0x2F) buf[i] = '-';
+	       	tmp[j]=buf[i];
+	       	tmp2[j]=buf[i];
+	       	next = 1;
+	        j++;
+		}else{
+	       	if(next){
+				tmp[j]=0x20;
+				tmp2[j]='_';
+				next = 0;
+		       	j++;
+	       	}
+	    }
+	 	i++;
+     }
+
+     next=0;
+     if(tmp2[0]=='_'){ next=1; } //offset
+     if(tmp[(j-1)]==0x20){ tmp[(j-1)] = tmp2[(j-1)]='\0'; }else{ tmp[j] = tmp2[j]='\0'; }
+
+	 if(is_out){ //+4 for extension
+	 	game_rom = (char *)malloc(j-next +4);
+		memcpy((unsigned char *)game_rom, (unsigned char *)tmp2 +next, j-next); //stringed file
+	 }
+
+	 game_name = (char *)malloc(j-next);
+	 memcpy((unsigned char *)game_name, (unsigned char *)tmp +next, j-next); //trimmed
+     return 0;
 }
 
 int main()
@@ -62,14 +127,23 @@ int main()
 
     unsigned long i=0;
 	unsigned long j=0;
-    unsigned char *buffer_rom = NULL;
     unsigned long address=0;
-	unsigned long Gamesize=0;
+	unsigned long save_address = 0;
+
+	unsigned char *buffer_rom = NULL;
+	unsigned char *buffer_save = NULL;	
+	unsigned char *buffer_header = NULL;
+	unsigned char region[5];
+	unsigned char *BufferROM;
 	char dump_name[64];
 	char *game_region = NULL;
+
 	int choixMenu=0;
-	unsigned char *BufferROM;
-	 FILE *myfile;
+	int game_size=0;
+	int save_size = 0;
+	int checksum_header = 0;	 
+	
+	FILE *myfile;
 
 	// Fix
 
@@ -83,7 +157,7 @@ int main()
     printf("    Sega Dumper USB2 Software     \n");
     printf(" ---------------------------------\n");
 
-    printf(" \nInit LibUSB... \n");
+    printf("Init LibUSB... \n");
 
   /* Initialise libusb. */
 
@@ -94,10 +168,10 @@ int main()
     return 1;
   }
 
-    printf(" \nLibUSB Init Sucessfully ! \n");
+    printf("LibUSB Init Sucessfully ! \n");
 
 
- printf(" \nDetecting Sega Dumper... \n");
+ printf("Detecting Sega Dumper... \n");
 
   /* Get the first device with the matching Vendor ID and Product ID. If
    * intending to allow multiple demo boards to be connected at once, you
@@ -134,7 +208,7 @@ int main()
 	}
 
 
- printf(" \nSega Dumper Found ! \n");
+ printf("Sega Dumper Found ! \n");
  printf("Sending commande Wake Up ! \n");
 
 
@@ -168,104 +242,115 @@ printf("\nDisplaying USB IN buffer\n\n");
 
   // Now try to read ROM MD Header
 
-		
+		buffer_header = (unsigned char *)malloc(0x200);
 		i = 0;
-        address = 256/2;
+        address = 0x80;
 
-        //	while(i<8){
+			// Cleaning header Buffer
+       			 for (i=0; i<512; i++)
+        			{
+            			buffer_header[i]=0x00;
+					}
+				i = 0;
+
+while (i<8)
+{
+
 	   			usb_buffer_out[0] = READ_MD;
 	      		usb_buffer_out[1] = address&0xFF ;
 	   			usb_buffer_out[2] = (address&0xFF00)>>8;
-	   			usb_buffer_out[3] = 0;
-	   			usb_buffer_out[4] = 0;
+	   			usb_buffer_out[3]=(address & 0xFF0000)>>16;
+	   			usb_buffer_out[4] = 0; // Slow Mode
 
-libusb_bulk_transfer(handle, 0x01,usb_buffer_out, sizeof(usb_buffer_out), &numBytes, 0); 
-libusb_bulk_transfer(handle, 0x82, usb_buffer_in, sizeof(usb_buffer_in), &numBytes, 0); 
-
-        //	}
-
-printf("\nDisplaying Cartridge info :\n");
-j=0;
-/*
-   for (i = 0; i < 64; i++)
-    {
-        printf("%02X ",usb_buffer_in[i]);
-		j++;
-		if (j==16){printf("\n");j=0;}
-    }
-*/
-printf("\n%.*s",16, (char *)usb_buffer_in);
-printf("\n%.*s",16, (char *)usb_buffer_in+16);
-printf("\n%.*s",32, (char *)usb_buffer_in+32);
-/*
-/////  Fix 1
-
-address=0;
-i=0;
-
-while(i<9)
-{
-usb_buffer_out[0] = READ_MD;
-usb_buffer_out[1] = address&0xFF ;
-usb_buffer_out[2] = (address&0xFF00)>>8;
-usb_buffer_out[3] = 0;
-usb_buffer_out[4] = 0;
-libusb_bulk_transfer(handle, 0x01,usb_buffer_out, sizeof(usb_buffer_out), &numBytes, 0); 
-libusb_bulk_transfer(handle, 0x82, usb_buffer_in, sizeof(usb_buffer_in), &numBytes, 0);
-memcpy((unsigned char *)rom_buffer_begin+64*i, usb_buffer_in, 64);
+libusb_bulk_transfer(handle, 0x01,usb_buffer_out, sizeof(usb_buffer_out), &numBytes, 60000);
+libusb_bulk_transfer(handle, 0x82,buffer_header+(64*i),64, &numBytes, 60000);
 address+=32;
 i++;
-}
+ } 		
+		
 
-/////  Fix 2
-
-address=(Gamesize -512)/2;
-i=0;
-
-while(i<8)
+if(memcmp((unsigned char *)buffer_header,"SEGA",4) == 0)
 {
-usb_buffer_out[0] = READ_MD;
-usb_buffer_out[1] = address&0xFF ;
-usb_buffer_out[2] = (address&0xFF00)>>8;
-usb_buffer_out[3] = (address & 0xFF0000)>>16;
-usb_buffer_out[4] = 0;
-libusb_bulk_transfer(handle, 0x01,usb_buffer_out, sizeof(usb_buffer_out), &numBytes, 0); 
-libusb_bulk_transfer(handle, 0x82, usb_buffer_in, sizeof(usb_buffer_in), &numBytes, 0);
-memcpy((unsigned char *)rom_buffer_end+64*i, usb_buffer_in, 64);
-address+=32;
-i++;
+printf("\nMegadrive/Genesis cartridge detected!\n");
+ for(i=0; i<(256/16); i++){
+		        printf("\n");
+				printf(" %03lX", 0x100+(i*16));
+				for(j=0; j<16; j++){
+					printf(" %02X", buffer_header[j+(i*16)]);
+				}
+		        printf(" %.*s", 16, buffer_header +(i*16));
+		    }
+printf("\n");
 }
-/*
-j=0;
-
-printf("\nDisplaying Fix info :\n");
-
-   for (i = 0; i < 64*8; i++)
-    {
-        printf("%02X ",rom_buffer_end[i]);
-		j++;
-		if (j==16){printf("\n");j=0;}
-    }*/
 
 
-/////*/
 
-// Calculate ROM Size :
+printf("\n --- HEADER ---\n");
+memcpy((unsigned char *)dump_name, (unsigned char *)buffer_header+32, 48);
+trim((unsigned char *)dump_name, 0);
+printf(" Domestic: %.*s\n", 48, (char *)game_name);
+memcpy((unsigned char *)dump_name, (unsigned char *)buffer_header+80, 48);
+trim((unsigned char *)dump_name, 0);
 
-address = 384/2;
-usb_buffer_out[0] = READ_MD;
-usb_buffer_out[1] = address&0xFF ;
-usb_buffer_out[2] = (address&0xFF00)>>8;
-usb_buffer_out[3] = 0;
-usb_buffer_out[4] = 0;
+printf(" International: %.*s\n", 48, game_name);
+printf(" Release date: %.*s\n", 16, buffer_header+0x10);
+printf(" Version: %.*s\n", 14, buffer_header+0x80);
+memcpy((unsigned char *)region, (unsigned char *)buffer_header +0xF0, 4);
+		for(i=0;i<4;i++){
+			if(region[i]==0x20){
+				game_region = (char *)malloc(i);
+				memcpy((unsigned char *)game_region, (unsigned char *)buffer_header +0xF0, i);
+				game_region[i] = '\0';
+				break;
+			}
+		}
 
-libusb_bulk_transfer(handle, 0x01,usb_buffer_out, sizeof(usb_buffer_out), &numBytes, 0); 
-libusb_bulk_transfer(handle, 0x82, usb_buffer_in, sizeof(usb_buffer_in), &numBytes, 0);
-Gamesize=(usb_buffer_in[37] +1) * 65536;
-printf("\nRom Size : %ld Ko \n",Gamesize/1024); //M
+		if(game_region[0]=='0'){
+			game_region = (char *)malloc(4);
+			memcpy((char *)game_region, (char *)unk, 3);
+			game_region[3] = '\0';
+		}
+
+printf(" Region: %s\n", game_region);
+
+checksum_header = (buffer_header[0x8E]<<8) | buffer_header[0x8F];
+printf(" Checksum: %X\n", checksum_header);
+
+game_size = 1 + ((buffer_header[0xA4]<<24) | (buffer_header[0xA5]<<16) | (buffer_header[0xA6]<<8) | buffer_header[0xA7])/1024;
+printf(" Game size: %dKB\n", game_size);
+
+
+
+if((buffer_header[0xB0] + buffer_header[0xB1])!=0x93){
+            printf(" Extra Memory : No\n");
+        }else{
+            printf(" Extra Memory : Yes ");
+            switch(buffer_header[0xB2]){
+				case 0xF0: printf(" 8bit backup SRAM (even addressing)\n"); break;
+            	case 0xF8: printf(" 8bit backup SRAM (odd addressing)\n"); break;
+				case 0xB8: printf(" 8bit volatile SRAM (odd addressing)\n"); break;
+				case 0xB0: printf(" 8bit volatile SRAM (even addressing)\n"); break;
+				case 0xE0: printf(" 16bit backup SRAM\n"); break;
+				case 0xA0: printf(" 16bit volatile SRAM\n"); break;
+            	case 0xE8: printf(" Serial EEPROM\n"); break;
+            }
+			save_size = ((buffer_header[0xBA]) | (buffer_header[0xBB] << 8));
+        	save_size = (save_size/1024)+1;
+        	save_address = (buffer_header[0xB4]<<24) | (buffer_header[0xB5]<<16) | (buffer_header[0xB6] << 8) | buffer_header[0xB7];
+            printf(" Save size: %dKb\n", save_size); 
+printf(" Save address: %lX\n", save_address);
+
+if(usb_buffer_in[0xB2]==0xE8) // EEPROM Game
+{
+   printf(" No information on this game!\n");
+}
+}
 
 printf("\n\n --- MENU ---\n");
-printf(" 1) Dump SMD ROM\n"); //MD
+printf(" 1) Dump SMD ROM\n"); 
+printf(" 2) Dump SMD Save\n");
+printf(" 3) Write SMD Save\n");
+printf(" 4) Erase SMD Save\n");
 
 printf("\nYour choice: \n");
     scanf("%d", &choixMenu);
@@ -275,12 +360,23 @@ switch(choixMenu)
 
 		case 1: // DUMP SMD ROM
 				choixMenu=0;
+				printf(" 1) Auto (from header)\n");
+        		printf(" 2) Manual\n");
+				printf(" Your choice: ");
+        		scanf("%d", &choixMenu);
+					if(choixMenu==2)
+					{
+            			printf(" Enter number of KB to dump: ");
+            			scanf("%d", &game_size);
+					}		    
 				printf("Sending command Dump ROM \n");
         		printf("Dumping please wait ...\n");
-				BufferROM = (unsigned char*)malloc(Gamesize);
 				address=0;
+			    game_size *= 1024;
+				printf("\nRom Size : %ld Ko \n",game_size/1024);
+				BufferROM = (unsigned char*)malloc(game_size);
 				// Cleaning ROM Buffer
-       			 for (i=0; i<Gamesize; i++)
+       			 for (i=0; i<game_size; i++)
         			{
             			BufferROM[i]=0x00;
 					}
@@ -288,27 +384,194 @@ switch(choixMenu)
 						usb_buffer_out[0] = READ_MD;           				
 						usb_buffer_out[1]=address & 0xFF;
             			usb_buffer_out[2]=(address & 0xFF00)>>8;
-            			usb_buffer_out[3]=(usb_buffer_in[37] +1);
+            			usb_buffer_out[3]=(address & 0xFF0000)>>16;
             			usb_buffer_out[4]=1;
 
-		libusb_bulk_transfer(handle, 0x01,usb_buffer_out, sizeof(usb_buffer_out), &numBytes, 60000);
-printf("ROM dump in progress...\n"); 
-res = libusb_bulk_transfer(handle, 0x82,BufferROM,Gamesize, &numBytes, 60000);
-  if (res != 0)
-  {
-    printf("Error \n");
-    return 1;
-  }     
- printf("\nDump ROM completed !\n");
-         myfile = fopen("dump_smd.bin","wb");
-		// Write Fix
-		//memcpy((unsigned char *)BufferROM, rom_buffer_begin,64*9);
-		//memcpy((unsigned char *)BufferROM+(Gamesize-512), rom_buffer_end,512);
-        fwrite(BufferROM, 1,Gamesize, myfile);
-        fclose(myfile);
-		break;
+						libusb_bulk_transfer(handle, 0x01,usb_buffer_out, sizeof(usb_buffer_out), &numBytes, 60000);
+						printf("ROM dump in progress...\n"); 
+						res = libusb_bulk_transfer(handle, 0x82,BufferROM,game_size, &numBytes, 60000);
+  							if (res != 0)
+  								{
+    								printf("Error \n");
+    								return 1;
+  								}     
+ 						printf("\nDump ROM completed !\n");
+         				myfile = fopen("dump_smd.bin","wb");
+        				fwrite(BufferROM, 1,game_size, myfile);
+       					fclose(myfile);
+						break;
+
+		case 2: // DUMP SMD Save
+				choixMenu=0;
+				printf(" 1) Auto (from header)\n");
+        		printf(" 2) Manual 64kb/8KB\n");
+        		printf(" 3) Manual 256kb/32KB\n");
+        		printf(" Your choice: ");
+				scanf("%d", &choixMenu);
+				
+				 if(choixMenu>3)
+				  {
+        			printf(" Wrong number!\n\n");
+	        		return 0;
+				   }
+
+				switch(choixMenu)
+				{
+					case 1:  save_size *= 1024;  break;
+					case 2:  save_size = 8192;  break;
+					case 3:  save_size = 32768; break;
+					default: save_size = 8192;
+				}
+			
+				buffer_rom = (unsigned char*)malloc(save_size);
+				buffer_save = (unsigned char*)malloc((save_size*2));
+
+				 for (i=0; i<(save_size*2); i++)
+        {
+            buffer_save[i]=0xFF;
+        }
+
+				usb_buffer_out[0] = READ_MD_SAVE;
+				address=(save_address/2);
+				i=0;
+				while ( i< save_size)
+			{
+							          				
+					usb_buffer_out[1]=address & 0xFF;           		
+					usb_buffer_out[2]=(address & 0xFF00)>>8;
+            		usb_buffer_out[3]=(address & 0xFF0000)>>16;
+            		usb_buffer_out[4]=0;
+				    libusb_bulk_transfer(handle, 0x01,usb_buffer_out, sizeof(usb_buffer_out), &numBytes, 60000);
+					libusb_bulk_transfer(handle, 0x82,(buffer_rom+i),64, &numBytes, 60000);
+					address +=64; //next adr
+					i+=64;
+
+            		printf("\r SAVE dump in progress: %ld%%", ((100 * i)/save_size));
+					fflush(stdout);
+				}
+					i=0;
+					j=0;
+					myfile = fopen("raw.srm","wb");
+        			fwrite(buffer_rom,1,save_size/2, myfile);
+
+				for (i=0; i<save_size; i++)
+       			 {
+           			 j=j+1;
+            		buffer_save[i+j]=buffer_rom[i];
+        		}
+
+
+				myfile = fopen("dump_smd.srm","wb");
+        		fwrite(buffer_save,1,1024*64, myfile);
+       		    fclose(myfile);
+				break;
+
+	
+		case 3:  // WRITE SRAM
+
+    	case 4:  // ERASE SRAM
+		//write -> load file
+		//erase full of 0xFF
+				save_size *= 1024; //in KB
+        		buffer_save = (unsigned char*)malloc(save_size);
+
+      			if(choixMenu == 3)
+				{
+	       			printf(" Save file: ");
+	        		scanf("%60s", dump_name);
+					myfile = fopen(dump_name,"rb");
+
+		    			if(myfile == NULL)
+						  {
+		    				printf(" Save file %s not found!\n Exit\n\n", dump_name);
+		       				free(game_name);
+		       				free(game_rom);
+		       				free(game_region);
+		       				free(buffer_save);
+		        			return 0;
+		    			  }
+
+		    		fread(buffer_save, 1, save_size, myfile);
+					fclose(myfile);
+
+       			}else{		//clean buffer with 0xFF (erase)
+						for(i=0;i<save_size;i++)
+							{
+								buffer_save[i] = 0xFF;
+							}
+        			}
+
+					checksum_header = 0;
+						for(i=0;i<save_size;i++)
+							{
+								checksum_header += buffer_save[i]; //checksum
+							}
+
+					//1st BACKUP SRAM (just in case...)
+        			buffer_rom = (unsigned char*)malloc(0x10000);
+					address = (save_address/2);
+					i=0;
+       					 while(i<save_size)
+							{
+
+								usb_buffer_out[1]=address & 0xFF;           		
+								usb_buffer_out[2]=(address & 0xFF00)>>8;
+            					usb_buffer_out[3]=(address & 0xFF0000)>>16;
+            					usb_buffer_out[4]=0;
+				    			libusb_bulk_transfer(handle, 0x01,usb_buffer_out, sizeof(usb_buffer_out), &numBytes, 60000);
+								libusb_bulk_transfer(handle, 0x82,(buffer_rom+i),64, &numBytes, 60000);
+            					address +=64; //next adr
+           						i+=64;
+            					printf("\r BACKUP save in progress: %ld%%", ((100 * i)/save_size));
+            					fflush(stdout);
+        					}
+
+						while(i<0x10000){ buffer_rom[i++] = 0xFF; } //fill with 0xFF until 64KB
+        				myfile = fopen("dump_smd.srm.bak","wb");
+        				fwrite(buffer_rom, 1, 0x10000, myfile);
+        				fclose(myfile);
+
+      					printf("\n");
+ 						address = (save_address/2);
+						i=0;
+						printf(" Save size: %d (0x%X)\n", save_size, save_size);
+						fflush(stdout);
+
+  	   					while(i<save_size)
+							{
+	     						usb_buffer_out[0] = WRITE_MD_SAVE; // Select write in 8bit Mode
+								usb_buffer_out[1]=address & 0xFF;           		
+								usb_buffer_out[2]=(address & 0xFF00)>>8;
+            					usb_buffer_out[3]=(address & 0xFF0000)>>16;
+
+									if((save_size - i)<58)
+									 {
+	 	    							usb_buffer_out[4] = (save_size - i); //adjust last packet
+	  	    						}else{
+	  	    							usb_buffer_out[4] = 58; //max 58 bytes - must by pair (word)
+	  	    							}
+
+							memcpy((unsigned char *)usb_buffer_out +5, (unsigned char *)buffer_save +i, usb_buffer_out[4]);
+            					libusb_bulk_transfer(handle, 0x01,usb_buffer_out, sizeof(usb_buffer_out), &numBytes, 60000);
+            					i += usb_buffer_out[4];
+            					address += usb_buffer_out[4];
+           						printf("\r %s in progress: %ld%%", save_msg[(choixMenu - 3)], ((100 * i)/save_size));
+           						fflush(stdout);
+       						 }
+
+        				free(buffer_save);
+						break;
+
+			
+
+	}
+		
+return 0;
 
 }
+
+
+
 
 
 
@@ -370,7 +633,8 @@ printf("\n 1 paquets recu \n");
 */
 
 
-   		return 0;
+   
 
-  
-}
+
+
+
