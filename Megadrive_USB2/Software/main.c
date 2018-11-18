@@ -129,18 +129,21 @@ int main()
 	unsigned long j=0;
     unsigned long address=0;
 	unsigned long save_address = 0;
-
 	unsigned char *buffer_rom = NULL;
 	unsigned char *buffer_save = NULL;	
 	unsigned char *buffer_header = NULL;
+	unsigned char octetActuel=0;
 	unsigned char region[5];
+	unsigned char odd=0;
 	unsigned char *BufferROM;
 	char dump_name[64];
 	char *game_region = NULL;
 
 	int choixMenu=0;
 	int game_size=0;
-	int save_size = 0;
+	unsigned long save_size1 = 0;
+	unsigned long save_size2 = 0;
+	unsigned long save_size = 0;
 	int checksum_header = 0;	 
 	
 	FILE *myfile;
@@ -199,8 +202,6 @@ int main()
   }
 
 // Clean Buffer
-
-
   for (i = 0; i < 64; i++)
     {
       usb_buffer_in[i]=0x00;
@@ -334,10 +335,17 @@ if((buffer_header[0xB0] + buffer_header[0xB1])!=0x93){
 				case 0xA0: printf(" 16bit volatile SRAM\n"); break;
             	case 0xE8: printf(" Serial EEPROM\n"); break;
             }
-			save_size = ((buffer_header[0xBA]) | (buffer_header[0xBB] << 8));
-        	save_size = (save_size/1024)+1;
-        	save_address = (buffer_header[0xB4]<<24) | (buffer_header[0xB5]<<16) | (buffer_header[0xB6] << 8) | buffer_header[0xB7];
-            printf(" Save size: %dKb\n", save_size); 
+			if ( buffer_header[0xB2] != 0xE0 | buffer_header[0xB2] != 0xA0 ) // 8 bit SRAM
+			{
+				save_size2 = (buffer_header[0xB8]<<24) | (buffer_header[0xB9]<<16) | (buffer_header[0xBA] << 8) | buffer_header[0xBB];
+				save_size1 = (buffer_header[0xB4]<<24) | (buffer_header[0xB5]<<16) | (buffer_header[0xB6] << 8) | buffer_header[0xB7];
+
+				save_size = save_size2 - save_size1;
+				save_size = (save_size/1024); // Kb format
+				save_size=(save_size/2) + 1; // 8bit size 
+			}
+        	save_address = (buffer_header[0xB4]<<24) | (buffer_header[0xB5]<<16) | (buffer_header[0xB6] << 8) | buffer_header[0xB7];           
+printf(" Save size: %dKb\n", save_size); 
 printf(" Save address: %lX\n", save_address);
 
 if(usb_buffer_in[0xB2]==0xE8) // EEPROM Game
@@ -347,10 +355,10 @@ if(usb_buffer_in[0xB2]==0xE8) // EEPROM Game
 }
 
 printf("\n\n --- MENU ---\n");
-printf(" 1) Dump SMD ROM\n"); 
-printf(" 2) Dump SMD Save\n");
-printf(" 3) Write SMD Save\n");
-printf(" 4) Erase SMD Save\n");
+printf(" 1) Dump MD ROM\n"); 
+printf(" 2) Dump MD Save\n");
+printf(" 3) Write MD Save\n");
+printf(" 4) Erase MD Save\n");
 
 printf("\nYour choice: \n");
     scanf("%d", &choixMenu);
@@ -358,7 +366,7 @@ printf("\nYour choice: \n");
 switch(choixMenu)
 {
 
-		case 1: // DUMP SMD ROM
+		case 1: // DUMP MD ROM
 				choixMenu=0;
 				printf(" 1) Auto (from header)\n");
         		printf(" 2) Manual\n");
@@ -401,7 +409,7 @@ switch(choixMenu)
        					fclose(myfile);
 						break;
 
-		case 2: // DUMP SMD Save
+		case 2: // DUMP MD Save
 				choixMenu=0;
 				printf(" 1) Auto (from header)\n");
         		printf(" 2) Manual 64kb/8KB\n");
@@ -423,12 +431,12 @@ switch(choixMenu)
 					default: save_size = 8192;
 				}
 			
-				buffer_rom = (unsigned char*)malloc(save_size);
-				buffer_save = (unsigned char*)malloc((save_size*2));
+				buffer_rom = (unsigned char*)malloc(save_size); // raw buffer
+				buffer_save = (unsigned char*)malloc((save_size*2)); // raw in 16bit format
 
 				 for (i=0; i<(save_size*2); i++)
         {
-            buffer_save[i]=0xFF;
+            buffer_save[i]=0x00;
         }
 
 				usb_buffer_out[0] = READ_MD_SAVE;
@@ -452,7 +460,7 @@ switch(choixMenu)
 					i=0;
 					j=0;
 					myfile = fopen("raw.srm","wb");
-        			fwrite(buffer_rom,1,save_size/2, myfile);
+        			fwrite(buffer_rom,1,save_size, myfile);
 
 				for (i=0; i<save_size; i++)
        			 {
@@ -462,18 +470,24 @@ switch(choixMenu)
 
 
 				myfile = fopen("dump_smd.srm","wb");
-        		fwrite(buffer_save,1,1024*64, myfile);
+        		fwrite(buffer_save,1,save_size*2, myfile);
        		    fclose(myfile);
 				break;
 
 	
 		case 3:  // WRITE SRAM
-
     	case 4:  // ERASE SRAM
-		//write -> load file
-		//erase full of 0xFF
+					//write -> load file
+					//erase full of 0xFF
 				save_size *= 1024; //in KB
         		buffer_save = (unsigned char*)malloc(save_size);
+
+				// Clean Buffer
+  for (i = 0; i < 64; i++)
+    {
+      usb_buffer_in[i]=0x00;
+      usb_buffer_out[i]=0x00;
+	}
 
       			if(choixMenu == 3)
 				{
@@ -490,9 +504,19 @@ switch(choixMenu)
 		       				free(buffer_save);
 		        			return 0;
 		    			  }
+						save_size=save_size/2;
+						i=0;
+						while ( i < save_size) // Read the save file
+       			 		{
+           					 fread(&octetActuel,1,1,myfile);
+                			 buffer_save[i]=octetActuel;
+							 i++;
+        				}
 
-		    		fread(buffer_save, 1, save_size, myfile);
-					fclose(myfile);
+ 					//fread(buffer_save, 1, save_size, myfile);
+					//fclose(myfile);
+
+		    				
 
        			}else{		//clean buffer with 0xFF (erase)
 						for(i=0;i<save_size;i++)
@@ -501,29 +525,30 @@ switch(choixMenu)
 							}
         			}
 
-					checksum_header = 0;
-						for(i=0;i<save_size;i++)
-							{
-								checksum_header += buffer_save[i]; //checksum
-							}
+					
 
 					//1st BACKUP SRAM (just in case...)
+
+
         			buffer_rom = (unsigned char*)malloc(0x10000);
 					address = (save_address/2);
 					i=0;
-       					 while(i<save_size)
+       					 
+						while(i<save_size)
 							{
 
+								usb_buffer_out[0] = READ_MD_SAVE;								
 								usb_buffer_out[1]=address & 0xFF;           		
 								usb_buffer_out[2]=(address & 0xFF00)>>8;
             					usb_buffer_out[3]=(address & 0xFF0000)>>16;
             					usb_buffer_out[4]=0;
 				    			libusb_bulk_transfer(handle, 0x01,usb_buffer_out, sizeof(usb_buffer_out), &numBytes, 60000);
 								libusb_bulk_transfer(handle, 0x82,(buffer_rom+i),64, &numBytes, 60000);
-            					address +=64; //next adr
-           						i+=64;
-            					printf("\r BACKUP save in progress: %ld%%", ((100 * i)/save_size));
-            					fflush(stdout);
+								address +=64; //next adr
+								i+=64;
+
+            					printf("\r SAVE dump in progress: %ld%%", ((100 * i)/save_size));
+								fflush(stdout);
         					}
 
 						while(i<0x10000){ buffer_rom[i++] = 0xFF; } //fill with 0xFF until 64KB
@@ -531,34 +556,42 @@ switch(choixMenu)
         				fwrite(buffer_rom, 1, 0x10000, myfile);
         				fclose(myfile);
 
+////////////////////
+
       					printf("\n");
  						address = (save_address/2);
 						i=0;
+						j=0;
 						printf(" Save size: %d (0x%X)\n", save_size, save_size);
 						fflush(stdout);
-
-  	   					while(i<save_size)
+  	   					while(i<save_size/8)
 							{
 	     						usb_buffer_out[0] = WRITE_MD_SAVE; // Select write in 8bit Mode
 								usb_buffer_out[1]=address & 0xFF;           		
 								usb_buffer_out[2]=(address & 0xFF00)>>8;
             					usb_buffer_out[3]=(address & 0xFF0000)>>16;
 
-									if((save_size - i)<58)
-									 {
-	 	    							usb_buffer_out[4] = (save_size - i); //adjust last packet
-	  	    						}else{
-	  	    							usb_buffer_out[4] = 58; //max 58 bytes - must by pair (word)
-	  	    							}
+								while (j<32)
+                    			{
+                        			usb_buffer_out[32+j]=buffer_save[i+j];
+									j++;
+                    			}
+								j=0;
+						
+					
 
-							memcpy((unsigned char *)usb_buffer_out +5, (unsigned char *)buffer_save +i, usb_buffer_out[4]);
+
             					libusb_bulk_transfer(handle, 0x01,usb_buffer_out, sizeof(usb_buffer_out), &numBytes, 60000);
-            					i += usb_buffer_out[4];
-            					address += usb_buffer_out[4];
-           						printf("\r %s in progress: %ld%%", save_msg[(choixMenu - 3)], ((100 * i)/save_size));
+								while ( usb_buffer_in[6] != 0xAA)
+								{
+									libusb_bulk_transfer(handle, 0x82, usb_buffer_in, sizeof(usb_buffer_in), &numBytes, 6000); 
+								}
+            					i +=32;
+            					address +=32;
+           						printf("\r %s in progress: %ld%%", save_msg[(choixMenu - 3)], ((100 * i)/save_size/8));
            						fflush(stdout);
        						 }
-
+						
         				free(buffer_save);
 						break;
 

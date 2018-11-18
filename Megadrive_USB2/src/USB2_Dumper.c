@@ -263,6 +263,18 @@ void setAddress(unsigned long adr){
 
 }
 
+void writeFlash8(int address, int byte)
+{
+    setAddress(address);
+    setDataOutput();
+	GPIOA_BRR  |= CE;
+	GPIOC_BRR |= WE_SRAM;
+    directWrite8(byte);
+	GPIOC_BSRR |= WE_SRAM;
+	GPIOA_BSRR  |= CE;
+    setDataInput();
+}
+
 void readMd(){ // 0.253 m/s
 
 	unsigned char adr = 0;
@@ -270,7 +282,7 @@ void readMd(){ // 0.253 m/s
 
     setDataOutput(); // 1,3 µs
 
-	GPIOA_BSRR |= CE | CLK1| CLK2 | CLK3 | TIME  | (CLK_CLEAR<<16);
+	GPIOA_BSRR |= CE | CLK1| CLK2 | CLK3 | (CLK_CLEAR<<16);
 	GPIOB_BSRR |= OE;
 	GPIOA_BSRR |= CLK_CLEAR;
 
@@ -304,7 +316,7 @@ void readMdSave(){
 
     setDataOutput();
 
-	GPIOA_BSRR |= CE | CLK1| CLK2 | CLK3 | TIME | WE_FLASH | (CLK_CLEAR<<16);
+	GPIOA_BSRR |= CE | CLK1| CLK2 | CLK3 | WE_FLASH | (CLK_CLEAR<<16);
 	GPIOB_BSRR |= OE;
 	GPIOA_BSRR |= CLK_CLEAR;
 
@@ -333,11 +345,12 @@ void readMdSave(){
 	}
 }
 
-void writeMdSave(){
+void writeMdSave()
+{
 
 	unsigned char adr = 0;
-
-    setDataOutput();
+	unsigned char byte=0;
+	setDataOutput();
 
 	GPIOA_BSRR |= CE | CLK1| CLK2 | CLK3 | TIME | WE_FLASH | (CLK_CLEAR<<16);
 	GPIOB_BSRR |= OE;
@@ -348,15 +361,21 @@ void writeMdSave(){
 	GPIOA_BRR  |= TIME;
 	GPIOA_BSRR |= TIME;
 
-	while(adr < usb_buffer_IN[4])
+	while(adr < 32)
 	{
 		setAddress((address+adr));
+		setDataOutput();
+		//directWrite8(0xAA);
+		byte = usb_buffer_IN[32+adr];
+		directWrite8(byte);
 		GPIOA_BRR  |= CE;
 	    GPIOC_BRR  |= WE_SRAM;
 		// wait(16); //utile ?
-		directWrite8(usb_buffer_IN[(5+adr)]);
+		//directWrite8(usb_buffer_IN[5+adr]);
+		
 		GPIOC_BSRR |= WE_SRAM;
 		GPIOA_BSRR |= CE;
+		setDataInput();
 		adr++;
 	}
 }
@@ -434,7 +453,7 @@ static void usbdev_data_rx_cb(usbd_device *usbd_dev, uint8_t ep)
 	usbd_ep_read_packet(usbd_dev, 0x01,usb_buffer_IN, 64); // Read Paquets from PC
 
 	address = (usb_buffer_IN[3]<<16) | (usb_buffer_IN[2]<<8) | usb_buffer_IN[1];
-	dump_running = usb_buffer_IN[4];		
+	//dump_running = usb_buffer_IN[4];		
 
 	if (usb_buffer_IN[0] == WAKEUP)   // Wake UP
    {
@@ -466,10 +485,9 @@ static void usbdev_data_rx_cb(usbd_device *usbd_dev, uint8_t ep)
    {
 		dump_running = 0;
 		writeMdSave();
-		readMdSave(); // make a checksum/verif this part can be removed as write is stable
-		buffer_checksum((unsigned char *)usb_buffer_OUT, usb_buffer_IN[4]);
-		memcpy((unsigned char *)usb_buffer_OUT+2, (unsigned char *)bufferZeroed, 62); //keep checksum only
+		usb_buffer_OUT[6]=0xAA;
 		usbd_ep_write_packet(usbd_dev, 0x82,usb_buffer_OUT,64);
+		usb_buffer_OUT[6]=0x00;
 	}
 
 }
@@ -562,30 +580,7 @@ for( i = 0; i < 0x800000; i++){ __asm__("nop"); } //1sec
 	GPIOC_BSRR |= WE_SRAM | (LED_PIN<<16); //inhib
 	gpio_set(GPIOC, GPIO13); // Turn Led OFF
 
-
-/*
-GPIOA_BSRR |= WE_FLASH;
-GPIOA_BRR |= WE_FLASH;
-GPIOA_BSRR |= WE_FLASH;
-GPIOA_BRR |= WE_FLASH;
-GPIOA_BSRR |= WE_FLASH;
-GPIOA_BRR |= WE_FLASH;
-
-	
-//SendNextPaquet(usbd_dev,0x82);
-
-GPIOA_BSRR |= WE_FLASH;
-GPIOA_BRR |= WE_FLASH;
-GPIOA_BSRR |= WE_FLASH;
-GPIOA_BRR |= WE_FLASH;
-GPIOA_BSRR |= WE_FLASH;
-*/
-
-
-//readMd8();
-
-
-dump_running = 0;
+	dump_running = 0;
 
 
 	while(1)
