@@ -26,6 +26,9 @@
 #define READ_MD 0x11
 #define READ_MD_SAVE 0x12
 #define WRITE_MD_SAVE 0x13
+#define WRITE_MD_FLASH 	0x14
+#define ERASE_MD_FLASH 0x15
+#define INFOS_ID 0x18
 
 // Sega Dumper Specific Variable
 
@@ -34,6 +37,7 @@ char * game_name = NULL;
 const char unk[] = {"unknown"};
 const char * save_msg[] = {	"WRITE SMD save",  //0
 							"ERASE SMD save"}; //1
+const char * wheel[] = { "-","\\","|","/"}; //erase wheel
 
 // Sega Dumper Specific Function
 
@@ -144,7 +148,10 @@ int main()
 	unsigned long save_size1 = 0;
 	unsigned long save_size2 = 0;
 	unsigned long save_size = 0;
-	int checksum_header = 0;	 
+	int checksum_header = 0;
+
+	unsigned char manufacturer_id=0;
+	unsigned char chip_id=0;	 
 	
 	FILE *myfile;
 
@@ -210,7 +217,7 @@ int main()
 
 
  printf("Sega Dumper Found ! \n");
- printf("Sending commande Wake Up ! \n");
+ printf("Reading cartridge...\n");
 
 
  // At this step we can try to read the buffer wake up Sega Dumper
@@ -272,7 +279,7 @@ i++;
 
 if(memcmp((unsigned char *)buffer_header,"SEGA",4) == 0)
 {
-printf("\nMegadrive/Genesis cartridge detected!\n");
+printf("\nMegadrive/Genesis/32X cartridge detected!\n");
  for(i=0; i<(256/16); i++){
 		        printf("\n");
 				printf(" %03lX", 0x100+(i*16));
@@ -282,9 +289,6 @@ printf("\nMegadrive/Genesis cartridge detected!\n");
 		        printf(" %.*s", 16, buffer_header +(i*16));
 		    }
 printf("\n");
-}
-
-
 
 printf("\n --- HEADER ---\n");
 memcpy((unsigned char *)dump_name, (unsigned char *)buffer_header+32, 48);
@@ -354,11 +358,24 @@ if(usb_buffer_in[0xB2]==0xE8) // EEPROM Game
 }
 }
 
+} // No Sega Megadrive cartridge Detected
+
+else {
+
+ printf(" \nUnknown cartridge type\n(erased flash eprom, Sega Mark III game, bad connection,...)\n");
+}
+
+
+
+
 printf("\n\n --- MENU ---\n");
 printf(" 1) Dump MD ROM\n"); 
 printf(" 2) Dump MD Save\n");
 printf(" 3) Write MD Save\n");
 printf(" 4) Erase MD Save\n");
+printf(" 5) Write MD Flash\n");
+printf(" 6) Erase MD Flash\n");
+printf(" 9) Manufacturer / Identification Chip \n"); 
 
 printf("\nYour choice: \n");
     scanf("%d", &choixMenu);
@@ -595,6 +612,98 @@ switch(choixMenu)
         				free(buffer_save);
 						break;
 
+
+		case 5: // Write MD Flash
+
+						printf(" ALL DATAS WILL BE ERASED BEFORE ANY WRITE!\n");
+						printf(" ROM file: ");
+       					scanf("%60s", dump_name);
+						myfile = fopen(dump_name,"rb");
+						fseek(myfile,0,SEEK_END);
+   						game_size = ftell(myfile);
+						buffer_rom = (unsigned char*)malloc(game_size);
+						rewind(myfile);
+	   					fread(buffer_rom, 1, game_size, myfile);
+						fclose(myfile);
+						i=0;
+						address = 0;
+
+						// First Erase Flash Memory
+
+						usb_buffer_out[0] = ERASE_MD_FLASH;
+           libusb_bulk_transfer(handle, 0x01,usb_buffer_out, sizeof(usb_buffer_out), &numBytes, 60000);
+            i=0;
+            while(usb_buffer_in[0]!=0xFF){
+            	libusb_bulk_transfer(handle, 0x82, usb_buffer_in, sizeof(usb_buffer_in), &numBytes, 6000);   //wait status
+										}
+
+						printf("\r ERASE SMD flash completed\n");
+						i=0;
+						address = 0;
+
+						while(i<game_size)
+			{
+								
+						usb_buffer_out[0] = WRITE_MD_FLASH; // Select write in 16bit Mode
+						usb_buffer_out[1] = address & 0xFF;
+						usb_buffer_out[2] = (address & 0xFF00)>>8;
+						usb_buffer_out[3] = (address & 0xFF0000)>>16;
+
+						  if((game_size - i)<54){
+	 	    	usb_buffer_out[4] = (game_size - i); //adjust last packet
+	  	    	}else{
+	  	    	usb_buffer_out[4] = 54; //max 58 bytes - must by pair (word)
+					}
+
+					memcpy((unsigned char *)usb_buffer_out +5, (unsigned char *)buffer_rom +i, usb_buffer_out[4]);
+
+						libusb_bulk_transfer(handle, 0x01,usb_buffer_out, sizeof(usb_buffer_out), &numBytes, 60000);
+ i += usb_buffer_out[4];
+address += (usb_buffer_out[4]>>1);
+printf("\r WRITE SMD flash in progress: %ld%%", ((100 * i)/game_size));
+fflush(stdout);
+}
+
+						printf("\r SMD flash completed\n");
+						free(buffer_save);
+						break;
+
+	case 6: //ERASE FLASH
+
+		    buffer_rom = (unsigned char*)malloc(64);
+	     	usb_buffer_out[0] = ERASE_MD_FLASH;
+           libusb_bulk_transfer(handle, 0x01,usb_buffer_out, sizeof(usb_buffer_out), &numBytes, 60000);
+            i=0;
+            while(usb_buffer_in[0]!=0xFF){
+            	libusb_bulk_transfer(handle, 0x82, usb_buffer_in, sizeof(usb_buffer_in), &numBytes, 6000);   //wait status
+		        printf("\r ERASE SMD flash in progress: %s ", wheel[i]);
+		        fflush(stdout);
+		        i++;
+		        if(i==4){i=0;}
+            }
+
+            printf("\r ERASE SMD flash in progress: 100%%");
+            fflush(stdout);
+
+break;
+
+	case 9: // Vendor / ID Info
+
+						printf("Detecting Flash...\n");
+						usb_buffer_out[0] = INFOS_ID;
+						libusb_bulk_transfer(handle, 0x01,usb_buffer_out, sizeof(usb_buffer_out), &numBytes, 60000);
+						libusb_bulk_transfer(handle, 0x82, usb_buffer_in, sizeof(usb_buffer_in), &numBytes, 6000); 
+
+manufacturer_id = usb_buffer_in[1];
+chip_id = usb_buffer_in[3];
+
+printf("Manufacturer ID : %02X \n",usb_buffer_in[1]);
+printf("Chip ID : %02X \n",usb_buffer_in[3]);
+
+scanf("%d");
+								
+						break; 
+
 			
 
 	}
@@ -603,70 +712,6 @@ return 0;
 
 }
 
-
-
-
-
-
-
-/*
-
-//HEADER MD
-    if(memcmp((unsigned char *)buffer_rom,"SEGA",4) == 0)
-{
-        printf("\n Megadrive/Genesis cartridge detected!\n");
-
-		printf("\n --- HEADER ---\n");
-		memcpy((unsigned char *)dump_name, (unsigned char *)buffer_rom +32, 48);
-		trim((unsigned char *)dump_name, 0);
-		printf(" Domestic: %.*s\n", 48, (char *)game_name);
-
-		memcpy((unsigned char *)dump_name, (unsigned char *)buffer_rom +80, 48);
-
-		trim((unsigned char *)dump_name, 0);
-	    printf(" International: %.*s\n", 48, game_name);
-
-//		trim((unsigned char *)dump_name, 1); //save in game_rom for filename output (remove unwanted & lowercase)
-
-		printf(" Release date: %.*s\n", 16, buffer_rom +0x10);
-printf(" Version: %.*s\n", 14, buffer_rom +0x80);
-
-}
-
-else
-{
-
-        printf(" \n Unknown cartridge type\n (erased flash eprom, Sega Mark III game, bad connection,...)\n");
-        game_rom = (char *)malloc(sizeof(unk));
-        game_name = (char *)malloc(sizeof(unk));
-        game_region = (char *)malloc(4);
-        game_region[3] = '\0';
-        memcpy((char *)game_rom, (char *)unk, sizeof(unk));
-        memcpy((char *)game_name, (char *)unk, sizeof(unk));
-        memcpy((char *)game_region, (char *)unk, 3);
-}
-
-
-	/*	
-		i = 0;
-        address = 256/2;
-
-        //	while(i<8){
-	   			usb_buffer_out[0] = READ_MD;
-	      		usb_buffer_out[1] = address&0xFF ;
-	   			usb_buffer_out[2] = (address&0xFF00)>>8;
-	   			usb_buffer_out[3] = 0;
-	   			usb_buffer_out[4] = 0;
-
-libusb_bulk_transfer(handle, 0x01,usb_buffer_out, sizeof(usb_buffer_out), &numBytes, 0); 
-libusb_bulk_transfer(handle, 0x82, usb_buffer_in, sizeof(usb_buffer_in), &numBytes, 0); 
-printf("\n 1 paquets recu \n");
-
-        //	}
-*/
-
-
-   
 
 
 

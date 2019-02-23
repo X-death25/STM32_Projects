@@ -64,7 +64,6 @@ X-death 11/2018
 static char serial_no[25];
 static uint8_t usb_buffer_IN[64];
 static uint8_t usb_buffer_OUT[64];
-static unsigned char bufferZeroed[64] = {0};
 static uint32_t len=0;
 
 // Sega Dumper Specific Var
@@ -74,6 +73,7 @@ static unsigned char dump_running = 0;
 static unsigned long address = 0;
 static unsigned char read8 = 0;
 static unsigned int read16 = 0;
+static unsigned int chipid = 0;
 
 //  USB Specific Fonction ///// 
 
@@ -227,6 +227,40 @@ void directWrite8(unsigned char val){
 	GPIOA_BSRR |= lut_write8[val] | (invVal << 16); //set and reset pins GPIOA
 }
 
+void directWrite16(unsigned int val){
+	unsigned int invVal = 0;
+
+	/*
+	#define D0 			GPIO9  // PB9
+	#define D1 			GPIO8  // PB8
+	#define D2 			GPIO7  // PB7
+	#define D3 			GPIO6  // PB6
+	#define D4 			GPIO4  // PB4
+	#define D5 			GPIO3  // PB3
+	#define D10 		GPIO15 // PB15
+	#define D11 		GPIO14 // PB14
+	#define D12 		GPIO13 // PB13
+	#define D13 		GPIO12 // PB12
+	#define D14 		GPIO11 // PB11
+	#define D15			GPIO10 // PB10
+	#define D6 			GPIO15 // PA15
+	#define D7 			GPIO10 // PA10
+	#define D8 			GPIO9  // PA9
+	#define D9 			GPIO8  // PA8
+	busB = D0 - D5, D10 - D15 / mask FFD8
+	busA = D6 - D9,  / mask 8700
+	*/
+
+	unsigned int busB = ((val&0x1)<<9) | ((val&0x2)<<7) | ((val&0x4)<<5) | ((val&0x8)<<3) | (val&0x10) | ((val&0x20)>>2) | ((val&0x400)<<5) | ((val&0x800)<<3) | ((val&0x1000)<<1) | ((val&0x2000)>>1) | ((val&0x4000)>>3) | ((val&0x8000)>>5); //D0 to D5 & D10 to D15
+	unsigned int busA = ((val&0x40)<<9) | ((val&0x80)<<3) | ((val&0x100)<<1) | ((val&0x200)>>1);  //D6 to D9
+
+	invVal = ~busB & 0xFFD8;
+	GPIOB_BSRR |= busB | (invVal << 16); //set and reset pins GPIOB
+
+	invVal = ~busA & 0x8700;
+	GPIOA_BSRR |= busA | (invVal << 16); //set and reset pins GPIOA
+}
+
 
 void directRead8(){
 	unsigned int busA = GPIOA_IDR;
@@ -258,8 +292,6 @@ void setAddress(unsigned long adr){
     directWrite8((adr>>16)&0xFF);
     GPIOA_BRR  |= CLK3;
     GPIOA_BSRR |= CLK3;
-
-	setDataInput();
 
 }
 
@@ -380,6 +412,200 @@ void writeMdSave()
 	}
 }
 
+void writeFlash16(int address,unsigned short word)
+{
+    GPIO_ODR(GPIOA) = GPIO_ODR(GPIOA) & ~(2 << 0); // WE 0 ( ASEL> WE Flash)
+    setAddress(address);
+    setDataOutput();
+    GPIO_ODR(GPIOA) = GPIO_ODR(GPIOA) & ~(1 << 0); // CE 0
+    GPIO_ODR(GPIOB) = GPIO_ODR(GPIOB) | (1 << 1);  // OE 1
+    directWrite16(word);
+    GPIO_ODR(GPIOA) = GPIO_ODR(GPIOA) | (2 << 0);  // WE 1 ( ASEL> WE Flash)
+    GPIO_ODR(GPIOA) = GPIO_ODR(GPIOA) | (1 << 0);  // CE 1
+    setDataInput();
+}
+
+void ResetFlash(void)
+{
+    writeFlash16(0x5555,0xAAAA);
+    writeFlash16(0x2AAA,0x5555);
+    writeFlash16(0x5555,0xF0F0);
+}
+
+
+void CFIWordProgram(void)
+{
+    writeFlash16(0x5555, 0xAAAA);
+    writeFlash16(0x2AAA, 0x5555);
+    writeFlash16(0x5555, 0xA0A0);
+}
+
+void commandMdFlash(unsigned long adr, unsigned int val){
+
+	setAddress(adr);
+	GPIOA_BRR  |= CE;
+	GPIOA_BRR  |= WE_FLASH;
+	directWrite16(val);
+	GPIOA_BSRR |= WE_FLASH;
+	GPIOA_BSRR |= CE;
+}
+
+void reset_command(){
+	setDataOutput();
+	commandMdFlash(0x5555, 0xAA);
+	commandMdFlash(0x2AAA, 0x55);
+	commandMdFlash(0x5555, 0xF0);
+	wait(16);
+}
+
+
+void EraseFlash()
+{
+	unsigned char poll_dq7=0;
+
+    setDataOutput();
+
+	GPIOA_BSRR |= CE | CLK1| CLK2 | CLK3 | TIME | WE_FLASH | (CLK_CLEAR<<16);
+	GPIOB_BSRR |= OE;
+	GPIOA_BSRR |= CLK_CLEAR;
+
+    commandMdFlash(0x5555, 0xAA);
+    commandMdFlash(0x2AAA, 0x55);
+    commandMdFlash(0x5555, 0x80);
+    commandMdFlash(0x5555, 0xAA);
+    commandMdFlash(0x2AAA, 0x55);
+	commandMdFlash(0x5555, 0x10);
+
+	if(((chipid&0xFF00)>>8) == 0xBF){
+		//SST-MICROCHIP
+		wait(2400000);
+		gpio_clear(GPIOC, GPIO13);
+
+		}else{
+
+		reset_command();
+
+		setAddress(0);
+		setDataInput();
+		GPIOA_BRR |= CE;
+		GPIOB_BRR |= OE;
+		wait(16);
+		while(!poll_dq7){
+			poll_dq7 = (GPIOA_IDR >> 3)&0x80; //test only dq7
+		}
+		GPIOB_BSRR |= OE;
+		GPIOA_BSRR |= CE;
+	}
+
+	reset_command();
+	usb_buffer_OUT[0] = 0xFF;
+}
+
+void writeMdFlash(){
+	/*
+	compatible
+	29LV160 (amd)
+	29LV320 (amd)
+	29LV640 (amd)
+	29W320 (st)
+	29F800 (hynix)
+	*/
+
+	//write in WORD
+	unsigned char adr16=0;
+	unsigned char j=5;
+	unsigned char poll_dq7=0;
+	unsigned char true_dq7=0;
+	unsigned int val16=0;
+
+    setDataOutput();
+
+	GPIOA_BSRR |= CE | CLK1| CLK2 | CLK3 | TIME | WE_FLASH | (CLK_CLEAR<<16);
+	GPIOB_BSRR |= OE;
+	GPIOA_BSRR |= CLK_CLEAR;
+
+    while(adr16 < (usb_buffer_IN[4]>>1)){
+
+		val16 = ((usb_buffer_IN[j])<<8) | usb_buffer_IN[(j+1)];
+		true_dq7 = (val16 & 0x80);
+		poll_dq7 = ~true_dq7;
+
+		if(val16!=0xFFFF){
+		    setDataOutput();
+
+		    commandMdFlash(0x5555, 0xAA);
+	    	commandMdFlash(0x2AAA, 0x55);
+	    	commandMdFlash(0x5555, 0xA0);
+			commandMdFlash((address+adr16), val16);
+		
+
+if(((chipid&0xFF00)>>8) == 0xBF){
+				wait(160); //SST Microchip
+			}else{
+
+reset_command();
+
+				GPIOA_BRR |= CE;
+				GPIOB_BRR |= OE;
+				setAddress((address+adr16));
+				setDataInput();
+			    while(poll_dq7 != true_dq7){
+				    poll_dq7 = (GPIOA_IDR&0x400)>>3;
+			    }
+				GPIOB_BSRR |= OE;
+				GPIOA_BSRR |= CE;
+			}
+		}
+		j+=2;
+		adr16++;   
+  }
+}
+void infosId(){
+	//seems to be valid only for 29LVxxx ?
+    setDataOutput();
+
+	GPIOA_BSRR |= CE | CLK1| CLK2 | CLK3 | TIME | WE_FLASH | (CLK_CLEAR<<16);
+	GPIOB_BSRR |= OE;
+	GPIOA_BSRR |= CLK_CLEAR;
+
+    commandMdFlash(0x5555, 0xAA);
+    commandMdFlash(0x2AAA, 0x55);
+    commandMdFlash(0x5555, 0x90);
+
+	setAddress(0); //Manufacturer
+    setDataInput();
+
+    GPIOA_BRR |= CE;
+    GPIOB_BRR |= OE;
+	wait(16);
+    directRead16();
+    usb_buffer_OUT[0] = 0;
+    usb_buffer_OUT[1] = read16&0xFF;
+    GPIOB_BSRR |= OE;
+    GPIOA_BSRR |= CE;
+
+	reset_command();
+
+    commandMdFlash(0x5555, 0xAA);
+    commandMdFlash(0x2AAA, 0x55);
+    commandMdFlash(0x5555, 0x90);
+
+	setAddress(1); //Flash id
+    setDataInput();
+    GPIOA_BRR |= CE;
+    GPIOB_BRR |= OE;
+	wait(16);
+    directRead16();
+    usb_buffer_OUT[2] = 1;
+    usb_buffer_OUT[3] = read16&0xFF;
+    GPIOB_BSRR |= OE;
+    GPIOA_BSRR |= CE;
+
+    reset_command();
+
+	chipid = (usb_buffer_OUT[1]<<8) | usb_buffer_OUT[3];
+}
+
 /// USB Specific Function
 
 
@@ -490,11 +716,39 @@ static void usbdev_data_rx_cb(usbd_device *usbd_dev, uint8_t ep)
 		usb_buffer_OUT[6]=0x00;
 	}
 
+	if (usb_buffer_IN[0] == ERASE_MD_FLASH)   					// ERASE MD Flash
+   {
+		dump_running = 0;
+		infosId();
+        EraseFlash();
+		usb_buffer_OUT[0]=0xFF;
+		usbd_ep_write_packet(usbd_dev, 0x82,usb_buffer_OUT,64);
+		usb_buffer_OUT[6]=0x00;
+   }
+
+	if (usb_buffer_IN[0] == WRITE_MD_FLASH)   					// WRITE MD Flash
+   {
+		dump_running = 0;
+		writeMdFlash();
+		usbd_ep_write_packet(usbd_dev, 0x82,usb_buffer_OUT,64);
+		usb_buffer_OUT[6]=0x00;
+	}
+
+	if (usb_buffer_IN[0] == INFOS_ID)   // Chip Information
+   {
+		dump_running = 0;
+		GPIOA_BRR  |= WE_FLASH;
+		usb_buffer_OUT[6]=0xFF;
+		infosId();
+		usbd_ep_write_packet(usbd_dev, 0x82,usb_buffer_OUT,64);
+		usb_buffer_OUT[6]=0x00;
+   }
+
 }
 
 /*
 * This gets called whenever a new OUT packet has been send from STM32 to PC
- */
+*/
 
 static void usbdev_data_tx_cb(usbd_device *usbd_dev, uint8_t ep)
 {
@@ -590,49 +844,5 @@ for( i = 0; i < 0x800000; i++){ __asm__("nop"); } //1sec
 	}
 
 }
-
-/*
-
-				GPIOA_BRR |= TIME;
-				address += 32;
-				readMd();
-				usbd_ep_write_packet(usbd_dev, 0x82,usb_buffer_OUT,64);
-				GPIOA_BSRR |= TIME;
-*/
-
-
-
-/*
-	while(1)
-	{
-
-        usbd_poll(usbd_dev);
-
-		if(usb_interrupt!=1)
-		{
-
-			switch(usb_interrupt)
-			{
-				case WAKEUP:
-		        	memcpy((unsigned char *)usb_buffer_OUT, (unsigned char *)stmReady, sizeof(stmReady));
-					break;
-
-				case READ_MD: 		//read 16bits
-					if(dump_running){ address += 32; }
-					dump_running = usb_buffer_IN[4];
-					readMd();
-					break;
-
-					       		      
-			}
-			while( usbd_ep_write_packet(usbd_dev, 0x82,usb_buffer_OUT,64) != 64);
-			usb_interrupt = 1;
-		}
-
-	}
-
-}
-*/
-
 
 
