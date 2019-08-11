@@ -1,6 +1,6 @@
 /*
 USB2 GameBoy Dumper
-X-death 05/2019
+X-death 08/2019
 */
 
 #include <string.h>
@@ -14,8 +14,8 @@ X-death 05/2019
 
 // Define Dumper Pinout
 
-#define D0 GPIO8  // PB8   GB Data lines
-#define D1 GPIO9  // PB9
+#define D0 GPIO9  // PB8   GB Data lines
+#define D1 GPIO8  // PB9
 #define D2 GPIO10 // PB10
 #define D3 GPIO11 // PB11
 #define D4 GPIO12 // PB12
@@ -27,6 +27,7 @@ X-death 05/2019
 #define WE GPIO10 //PA10
 #define CE GPIO8  //PA8
 
+#define A15 GPIO3 // PB3
 #define AUDIO_IN	GPIO4  // PB4  GB Extra lines
 #define CPU_CLK 	GPIO7  // PB7
 #define RESET		GPIO6  // PB6
@@ -36,6 +37,7 @@ X-death 05/2019
 #define CLK2 		GPIO4  // PA4
 
 #define LED_PIN 	GPIO13 // PC13  STM32 Led
+#define CLEAR_ALL_PINS	0x44444444
 
 // USB Special Command
 
@@ -59,10 +61,13 @@ static uint8_t usb_buffer_OUT[64];
 
 static const unsigned char stmReady[] = {'R','E','A','D','Y','!'};
 static unsigned char dump_running = 0;
+static unsigned char identify = 0; // Returned info from PC for Cartridge Info
 static unsigned long address = 0;
+static unsigned long byte = 0;    // Readed byte Counter
+static unsigned char Bank = 1; // Number of ROM bank always start at bank 1
 static unsigned char ROM_Bank = 0; // Number of ROM bank
 static unsigned char RAM_Bank = 0; // Number of RAM bank
-static unsigned char Mapper = 0; // Mapper Type
+static unsigned char Mapper = 0;   // Mapper Type
 
 //  USB Specific Fonction ///// 
 
@@ -180,46 +185,91 @@ void wait(long nb){
 
 void setDataInput(){
  GPIO_CRH(GPIOB) = 0x44444444; //set pb8-15 as data IN;
+//gpio_set_mode(GPIOB, GPIO_MODE_OUTPUT_50_MHZ,GPIO_CNF_OUTPUT_PUSHPULL,D0|D1|D2|D3|D4|D5|D6|D7);
 
 }
 
 void setDataOutput(){
 	GPIO_CRH(GPIOB) = 0x33333333;
-	//gpio_set_mode(GPIOD, GPIO_MODE_OUTPUT_50_MHZ,GPIO_CNF_OUTPUT_PUSHPULL,D0|D1|D2|D3|D4|D5|D6|D7);
+	//gpio_set_mode(GPIOB, GPIO_MODE_OUTPUT_50_MHZ,GPIO_CNF_OUTPUT_PUSHPULL,D0|D1|D2|D3|D4|D5|D6|D7);
 }
 
-void directWrite8(unsigned char val)
+void setAddress(unsigned long adr){
+
+		GPIO_CRH(GPIOB) = 0x33333333; //set pb8-15 as data OUT
+
+		GPIO_ODR(GPIOB) = ((adr) & 0xFF) << 8;
+		GPIOA_BRR |= CLK1;
+	    GPIOA_BSRR |= CLK1;
+
+		GPIO_ODR(GPIOB) = (adr) & 0xFF00; //address MSB
+		GPIOA_BRR |= CLK2;
+	    GPIOA_BSRR |= CLK2;
+
+		GPIO_CRH(GPIOB) = 0x44444444; //set pb8-15 as data IN
+
+}
+
+void writeFlash8(int address, int byte)
 {
-    GPIO_ODR(GPIOB) = (val << 8);
+    setAddress(address);
+    setDataOutput();
+	GPIOA_BRR |= WE;
+    GPIO_ODR(GPIOB) = (byte<<8); 
+	GPIOA_BSRR |= WE;
+    setDataInput();
 }
-
-unsigned char directRead8()
-{
-unsigned char byte=0;
-byte = (GPIO_IDR(GPIOB) & 0xFF00) >> 8; 
-return byte;
- 	
-}
-
-
-void SetAddress(unsigned short adr)
-{
-
-		setDataOutput();
-        GPIO_ODR(GPIOB) = ((adr) & 0xFF) << 8; //address LSB
-	    GPIO_BRR(GPIOA) |= CLK1; //low
-	    GPIO_BSRR(GPIOA) |= CLK1; //high 
-        //adr A8-A15
-        GPIO_ODR(GPIOB) = (adr) & 0xFF00; //address MSB
-    	GPIO_BRR(GPIOA) |= CLK2; //low
-    	GPIO_BSRR(GPIOA) |= CLK2; //high
-}
-
-
 
 void readGB()
 {
 
+unsigned char adr = 0;
+
+  
+	GPIOA_BSRR |=  CLK1 | CLK2;
+	GPIOA_BSRR |= OE;
+	GPIOA_BSRR |= CLK_CLEAR;
+
+	if ( Mapper == 0 ) // Support Mapper 0
+	{ 
+		GPIOB_BRR |= A15; // Connect A15 to /CE ROM and read full 32Ko
+	} 
+
+	if ( Mapper == 1 ) // MBC1 Bankswitch Support
+	{ 
+		writeFlash8(0x6000,0);  // Enable ROM Access => /CE = '0'
+
+		if ( byte == 16384 )
+		 {
+			address=0x4000;
+			byte=0;
+			Bank++;
+			writeFlash8(0x2000,Bank & 0x1F);
+			writeFlash8(0x4000,Bank >> 5);
+		 }
+	} 
+
+ while(adr<64){ // 64bytes/32word 8,5 µs * 32
+
+		GPIO_CRH(GPIOB) = 0x33333333; //set pb8-15 as data OUT
+
+		GPIO_ODR(GPIOB) = ((address +adr) & 0xFF) << 8;
+		GPIOA_BRR |= CLK1;
+	    GPIOA_BSRR |= CLK1;
+
+		GPIO_ODR(GPIOB) = (address +adr) & 0xFF00; //address MSB
+		GPIOA_BRR |= CLK2;
+	    GPIOA_BSRR |= CLK2;
+
+		GPIO_CRH(GPIOB) = 0x44444444; //set pb8-15 as data IN*/
+
+	    GPIOA_BRR |= OE;
+	    wait(16);
+		usb_buffer_OUT[adr] = (GPIO_IDR(GPIOB) & 0xFF00) >> 8; //save into read16 global
+	    GPIOA_BSRR |= OE;
+		adr++;
+		byte++;
+	}
   
 }
 
@@ -280,9 +330,6 @@ static void usbdev_data_rx_cb(usbd_device *usbd_dev, uint8_t ep)
 	usbd_ep_read_packet(usbd_dev, 0x01,usb_buffer_IN, 64); // Read Paquets from PC
 
 	address = (usb_buffer_IN[3]<<16) | (usb_buffer_IN[2]<<8) | usb_buffer_IN[1];
-	Mapper =  usb_buffer_IN[5];
-	ROM_Bank = 2 << usb_buffer_IN[6];
-	RAM_Bank = usb_buffer_IN[7];
 			
 
 	if (usb_buffer_IN[0] == WAKEUP)   // Wake UP
@@ -306,6 +353,13 @@ static void usbdev_data_rx_cb(usbd_device *usbd_dev, uint8_t ep)
 
 	if (usb_buffer_IN[0] == READ_GB && usb_buffer_IN[4] == 1 )   // READ GB Streaming mode ( High Speed)
    {
+		if (identify == 0)
+		{
+			Mapper =  usb_buffer_IN[5];
+			ROM_Bank = 2 << usb_buffer_IN[6];
+			RAM_Bank = usb_buffer_IN[7];			
+			identify =1;	
+		}
 		dump_running = 1;
 		SendNextPaquet(usbd_dev,0x82);
 	}
@@ -384,32 +438,50 @@ for( i = 0; i < 0x800000; i++){ __asm__("nop"); } //1sec
 
 	  //Full GPIO
       AFIO_MAPR = AFIO_MAPR_SWJ_CFG_JTAG_OFF_SW_OFF;
+
       GPIO_CRL(GPIOA) = 0x33333313; //always ouput (ce, clear etc) expact MARK 3 
       GPIO_CRH(GPIOA) = 0x34444333;
-	  GPIO_CRL(GPIOB) = 0x33333333;
+	  GPIO_CRL(GPIOB) = 0x33433444;
       GPIO_CRH(GPIOB) = 0x33333333;
-	 
-	 /* gpio_clear(GPIOD,D0|D1|D2|D3|D4|D5|D6|D7);
- gpio_set_mode(GPIOE, GPIO_MODE_OUTPUT_50_MHZ, GPIO_CNF_OUTPUT_PUSHPULL,A0 | A1 | A2 | A3 | A4 | A5 | A6 | A7 );
-  gpio_set_mode(GPIOE, GPIO_MODE_OUTPUT_50_MHZ, GPIO_CNF_OUTPUT_PUSHPULL,A8 | A9 | A10 | A11 | A12 | A13 | A14 | CE );
 
-	GPIOB_BSRR |= WE | RESET | OE | AUDIO_IN | CPU_CLK; // "1"
-	GPIOE_BSRR |= CE;*/
+  
+
+	/*  gpio_set_mode(GPIOA, GPIO_MODE_OUTPUT_50_MHZ, GPIO_CNF_OUTPUT_PUSHPULL,OE | WE | CE );
+	  gpio_set_mode(GPIOB, GPIO_MODE_OUTPUT_50_MHZ, GPIO_CNF_OUTPUT_PUSHPULL,AUDIO_IN | CPU_CLK | RESET );
+	  GPIOB_BSRR |= RESET | AUDIO_IN | CPU_CLK;*/
+
+GPIOA_BSRR |= OE;
+GPIOA_BSRR |= CLK_CLEAR;
+GPIOB_BSRR |= A15; 
+GPIOB_BSRR |= AUDIO_IN; 
+GPIOB_BSRR |= CPU_CLK; 
+GPIOB_BSRR |= RESET; 
+	 
     gpio_set_mode(GPIOC, GPIO_MODE_OUTPUT_50_MHZ, GPIO_CNF_OUTPUT_PUSHPULL, LED_PIN);
 	gpio_set(GPIOC, GPIO13); // Turn Led OFF
+	
+	dump_running = 0;
 
+	// Custom Test //
+
+	//setDataOutput();
+	//directWrite8(0x01);
+
+//SetAddress(1);
+	
 	
 
-	dump_running = 0;
+	
 
 
 	while(1)
 	{
-        usbd_poll(usbd_dev);
+       usbd_poll(usbd_dev);
 
 	}
 
 }
+
 
 
 
