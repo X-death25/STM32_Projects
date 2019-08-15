@@ -26,11 +26,12 @@ X-death 08/2019
 #define OE GPIO9  //PA9    GB Control lines
 #define WE GPIO10 //PA10
 #define CE GPIO8  //PA8
+#define RESET GPIO6  // PA6
 
-#define A15 GPIO3 // PB3
 #define AUDIO_IN	GPIO4  // PB4  GB Extra lines
 #define CPU_CLK 	GPIO7  // PB7
-#define RESET		GPIO6  // PB6
+#define A15 GPIO3          // PB3
+
 
 #define CLK_CLEAR 	GPIO0  // PA0  Dumper MUX
 #define CLK1 		GPIO3  // PA3
@@ -63,8 +64,9 @@ static const unsigned char stmReady[] = {'R','E','A','D','Y','!'};
 static unsigned char dump_running = 0;
 static unsigned char identify = 0; // Returned info from PC for Cartridge Info
 static unsigned long address = 0;
+static unsigned long offset = 64;
 static unsigned long byte = 0;    // Readed byte Counter
-static unsigned char Bank = 1; // Number of ROM bank always start at bank 1
+static unsigned char Bank = 0; // Number of ROM bank always start at bank 1
 static unsigned char ROM_Bank = 0; // Number of ROM bank
 static unsigned char RAM_Bank = 0; // Number of RAM bank
 static unsigned char Mapper = 0;   // Mapper Type
@@ -194,15 +196,16 @@ void setDataOutput(){
 	//gpio_set_mode(GPIOB, GPIO_MODE_OUTPUT_50_MHZ,GPIO_CNF_OUTPUT_PUSHPULL,D0|D1|D2|D3|D4|D5|D6|D7);
 }
 
-void setAddress(unsigned long adr){
+void setAddress (unsigned long address)
+{
 
-		GPIO_CRH(GPIOB) = 0x33333333; //set pb8-15 as data OUT
+GPIO_CRH(GPIOB) = 0x33333333; //set pb8-15 as data OUT
 
-		GPIO_ODR(GPIOB) = ((adr) & 0xFF) << 8;
+		GPIO_ODR(GPIOB) = ((address) & 0xFF) << 8;
 		GPIOA_BRR |= CLK1;
 	    GPIOA_BSRR |= CLK1;
 
-		GPIO_ODR(GPIOB) = (adr) & 0xFF00; //address MSB
+		GPIO_ODR(GPIOB) = (address) & 0xFF00; //address MSB
 		GPIOA_BRR |= CLK2;
 	    GPIOA_BSRR |= CLK2;
 
@@ -214,9 +217,11 @@ void writeFlash8(int address, int byte)
 {
     setAddress(address);
     setDataOutput();
+    GPIO_ODR(GPIOB) = (byte<<8);
 	GPIOA_BRR |= WE;
-    GPIO_ODR(GPIOB) = (byte<<8); 
+	wait(160);
 	GPIOA_BSRR |= WE;
+	wait(160);
     setDataInput();
 }
 
@@ -239,13 +244,15 @@ unsigned char adr = 0;
 	{ 
 		writeFlash8(0x6000,0);  // Enable ROM Access => /CE = '0'
 
-		if ( byte == 16384 )
+		if ( byte == 16384+offset)
 		 {
-			address=0x4000;
-			byte=0;
 			Bank++;
+			writeFlash8(0x6000, 0); // Set ROM Mode			
 			writeFlash8(0x2000,Bank & 0x1F);
 			writeFlash8(0x4000,Bank >> 5);
+		    address=0x4000;
+			byte=0;
+			offset=0; 
 		 }
 	} 
 
@@ -261,15 +268,15 @@ unsigned char adr = 0;
 		GPIOA_BRR |= CLK2;
 	    GPIOA_BSRR |= CLK2;
 
-		GPIO_CRH(GPIOB) = 0x44444444; //set pb8-15 as data IN*/
+		GPIO_CRH(GPIOB) = 0x44444444; //set pb8-15 as data IN
 
 	    GPIOA_BRR |= OE;
 	    wait(16);
 		usb_buffer_OUT[adr] = (GPIO_IDR(GPIOB) & 0xFF00) >> 8; //save into read16 global
 	    GPIOA_BSRR |= OE;
 		adr++;
-		byte++;
 	}
+byte+=64;
   
 }
 
@@ -455,7 +462,7 @@ GPIOA_BSRR |= CLK_CLEAR;
 GPIOB_BSRR |= A15; 
 GPIOB_BSRR |= AUDIO_IN; 
 GPIOB_BSRR |= CPU_CLK; 
-GPIOB_BSRR |= RESET; 
+GPIOA_BSRR |= RESET; 
 	 
     gpio_set_mode(GPIOC, GPIO_MODE_OUTPUT_50_MHZ, GPIO_CNF_OUTPUT_PUSHPULL, LED_PIN);
 	gpio_set(GPIOC, GPIO13); // Turn Led OFF
@@ -464,14 +471,17 @@ GPIOB_BSRR |= RESET;
 
 	// Custom Test //
 
-	//setDataOutput();
-	//directWrite8(0x01);
-
-//SetAddress(1);
-	
-	
-
-	
+	//byte=0x01;
+   /* setAddress(0x2000);
+    setDataOutput();
+    GPIO_ODR(GPIOB) = (byte<<8);
+	GPIOA_BRR |= WE;
+	wait(160);
+	GPIOA_BSRR |= WE;
+	wait(160);
+	writeFlash8(0x2000,byte & 0x1F);
+	setAddress(0x4000);
+   setDataInput();*/
 
 
 	while(1)
