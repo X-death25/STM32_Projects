@@ -170,10 +170,14 @@ libusb_bulk_transfer(handle, 0x82, usb_buffer_in, sizeof(usb_buffer_in), &numByt
 
 
 address=308;
+game_size=308+64;
 usb_buffer_out[0] = READ_GB;
 usb_buffer_out[1] = address & 0xFF ;
 usb_buffer_out[2] = (address & 0xFF00)>>8;
 usb_buffer_out[3]=(address & 0xFF0000)>>16;
+usb_buffer_out[5]=game_size & 0xFF;
+usb_buffer_out[6]=(game_size & 0xFF00)>>8;
+usb_buffer_out[7]=(game_size & 0xFF0000)>>16;
 usb_buffer_out[4] = 0; // Slow Mode
 libusb_bulk_transfer(handle, 0x01,usb_buffer_out, sizeof(usb_buffer_out), &numBytes, 60000);
 libusb_bulk_transfer(handle, 0x82,usb_buffer_in,64, &numBytes, 60000);
@@ -284,10 +288,16 @@ BufferROM = (unsigned char*)malloc(game_size);
 						usb_buffer_out[1]=address & 0xFF;
             			usb_buffer_out[2]=(address & 0xFF00)>>8;
             			usb_buffer_out[3]=(address & 0xFF0000)>>16;
-            			usb_buffer_out[4]=1;
-						usb_buffer_out[5]=Rom_Type;
+            			usb_buffer_out[4]=0;
+						usb_buffer_out[5]=game_size & 0xFF;
+            			usb_buffer_out[6]=(game_size & 0xFF00)>>8;
+            			usb_buffer_out[7]=(game_size & 0xFF0000)>>16;
+						usb_buffer_out[8]=Rom_Type;
+						usb_buffer_out[9]=usb_buffer_in[20]; // for calculate number of rom bank
+						usb_buffer_out[10]=usb_buffer_in[21];
+/*
 						usb_buffer_out[6]=usb_buffer_in[20]; // for calculate number of rom bank
-						usb_buffer_out[7]=usb_buffer_in[21]; // for calculate number of ram bank
+						usb_buffer_out[7]=usb_buffer_in[21]; // for calculate number of ram bank*/
 
 						libusb_bulk_transfer(handle, 0x01,usb_buffer_out, sizeof(usb_buffer_out), &numBytes, 60000);
 						printf("ROM dump in progress...\n"); 

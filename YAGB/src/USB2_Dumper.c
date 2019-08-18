@@ -64,12 +64,11 @@ static const unsigned char stmReady[] = {'R','E','A','D','Y','!'};
 static unsigned char dump_running = 0;
 static unsigned char identify = 0; // Returned info from PC for Cartridge Info
 static unsigned long address = 0;
-static unsigned long offset = 64;
-static unsigned long byte = 0;    // Readed byte Counter
 static unsigned char Bank = 0; // Number of ROM bank always start at bank 1
 static unsigned char ROM_Bank = 0; // Number of ROM bank
 static unsigned char RAM_Bank = 0; // Number of RAM bank
 static unsigned char Mapper = 0;   // Mapper Type
+static unsigned char offset = 0;   // Mapper Type
 
 //  USB Specific Fonction ///// 
 
@@ -219,85 +218,131 @@ void writeFlash8(int address, int byte)
     setDataOutput();
     GPIO_ODR(GPIOB) = (byte<<8);
 	GPIOA_BRR |= WE;
-	wait(160);
+	wait(260);
 	GPIOA_BSRR |= WE;
-	wait(160);
+	wait(260);
     setDataInput();
 }
 
-void readGB()
-{
 
-unsigned char adr = 0;
+unsigned int address_mapper;
+unsigned long address_max;
+unsigned char prev_Bank;
 
+void currentBank(){
+    if(address < 0x4000){
+        Bank = 0;
+    }
+    else{
+        Bank = (address/0x4000); //page num max 0xFF - 32mbits
+    }
+}
+void mapperRegister(){
+
+    currentBank();
+    
+    if(Bank != prev_Bank){
+         //new 16k bank !
+        prev_Bank = Bank;
+    
+        switch(Mapper){
+			case 0:
+					 address_mapper = (address & 0x7FFF);
+					 break;
+            case 1:
+            case 2:
+            case 3:
+                if(address > 0x3FFF){
+                    writeFlash8(0x6000, 0); // Set ROM Mode            
+                    writeFlash8(0x2000, Bank & 0x1F);
+                    writeFlash8(0x4000, Bank >> 5);
+					address_mapper = 0x4000 + (address & 0x3FFF);
+                    //address_mapper = 0x8000 + (address & 0x3FFF);
+                    }
+                break;
+			case 6:
+				 if(address > 0x3FFF){
+                    writeFlash8(0x2100,Bank);
+					address_mapper = 0x4000 + (address & 0x3FFF);
+                    }
+                break;
+
+			case 16:
+					gpio_clear(GPIOC, GPIO13); // Turn Led OFF
+				 if(address > 0x3FFF){
+                    writeFlash8(0x2100,Bank);
+					address_mapper = 0x4000 + (address & 0x3FFF);
+                    }
+                break;
+			case 27:
+				 if(address > 0x3FFF){
+                    writeFlash8(0x2100,Bank);
+					address_mapper = 0x4000 + (address & 0x3FFF);
+                    }
+                break;
+            default: //0
+                address_mapper = (address & 0x7FFF);
+        }            
+    }else{
+        // always in the same bank
+        if(address > 0x7FFF){
+            address_mapper = 0x4000 + (address & 0x3FFF);
+        }else{
+            address_mapper = (address & 0x7FFF);    
+        }
+    }
+}
+
+void readGB(usbd_device *usbd_dev){
+
+	unsigned char adr = 0;
+	prev_Bank = 0; //init
   
-	GPIOA_BSRR |=  CLK1 | CLK2;
+	GPIOA_BSRR |= CLK1 | CLK2;
 	GPIOA_BSRR |= OE;
 	GPIOA_BSRR |= CLK_CLEAR;
-
-	if ( Mapper == 0 ) // Support Mapper 0
-	{ 
-		GPIOB_BRR |= A15; // Connect A15 to /CE ROM and read full 32Ko
-	} 
-
-	if ( Mapper == 1 ) // MBC1 Bankswitch Support
-	{ 
-		writeFlash8(0x6000,0);  // Enable ROM Access => /CE = '0'
-
-		if ( byte == 16384+offset)
-		 {
-			Bank++;
-			writeFlash8(0x6000, 0); // Set ROM Mode			
-			writeFlash8(0x2000,Bank & 0x1F);
-			writeFlash8(0x4000,Bank >> 5);
-		    address=0x4000;
-			byte=0;
-			offset=0; 
-		 }
-	} 
-
- while(adr<64){ // 64bytes/32word 8,5 µs * 32
-
-		GPIO_CRH(GPIOB) = 0x33333333; //set pb8-15 as data OUT
-
-		GPIO_ODR(GPIOB) = ((address +adr) & 0xFF) << 8;
-		GPIOA_BRR |= CLK1;
-	    GPIOA_BSRR |= CLK1;
-
-		GPIO_ODR(GPIOB) = (address +adr) & 0xFF00; //address MSB
-		GPIOA_BRR |= CLK2;
-	    GPIOA_BSRR |= CLK2;
-
-		GPIO_CRH(GPIOB) = 0x44444444; //set pb8-15 as data IN
-
-	    GPIOA_BRR |= OE;
-	    wait(16);
-		usb_buffer_OUT[adr] = (GPIO_IDR(GPIOB) & 0xFF00) >> 8; //save into read16 global
-	    GPIOA_BSRR |= OE;
-		adr++;
+   
+	while(address < address_max){
+		adr = 0; //init
+		
+		mapperRegister(); //Change bank 'n update Mapper 'only' when necessary
+		
+		while(adr < 64){
+			GPIO_CRH(GPIOB) = 0x33333333; //set pb8-15 as data OUT
+			GPIO_ODR(GPIOB) = ((address_mapper +adr) & 0xFF) << 8;
+			GPIOA_BRR |= CLK1;
+		    GPIOA_BSRR |= CLK1;
+			GPIO_ODR(GPIOB) = (address_mapper +adr) & 0xFF00; //address MSB
+			GPIOA_BRR |= CLK2;
+		    GPIOA_BSRR |= CLK2;
+			GPIO_CRH(GPIOB) = 0x44444444; //set pb8-15 as data IN
+		    GPIOA_BRR |= OE;
+		    wait(16);
+			usb_buffer_OUT[adr] = (GPIO_IDR(GPIOB) & 0xFF00) >> 8; //save into read16 global
+		    GPIOA_BSRR |= OE;
+			adr++;
+			address++;
+			offset++;
+		}
+		while(usbd_ep_write_packet(usbd_dev, 0x82, usb_buffer_OUT, 64)==0); //send 64B packet
 	}
-byte+=64;
-  
+
 }
 
 void readGBSave()
 {
-
 	
 }
 
 void writeGBSave()
 {
-
 	
 }
-
 
 void ResetFlash(void)
 {
     
 }
-
 
 void EraseFlash()
 {
@@ -316,20 +361,18 @@ void infosId()
 /// USB Specific Function
 
 
-void SendNextPaquet(usbd_device *usbd_dev, uint8_t ep)
-{
-readGB();
-usbd_ep_write_packet(usbd_dev,ep,usb_buffer_OUT,64);
-address += 64;
-}
+//void SendNextPaquet(usbd_device *usbd_dev, uint8_t ep){
+//	readGB();
+//	usbd_ep_write_packet(usbd_dev,ep,usb_buffer_OUT,64);
+//	address += 64;
+//}
 
 
 /*
 * This gets called whenever a new IN packet has arrived from PC to STM32
  */
 
-static void usbdev_data_rx_cb(usbd_device *usbd_dev, uint8_t ep)
-{
+static void usbdev_data_rx_cb(usbd_device *usbd_dev, uint8_t ep){
 	(void)ep;
 	(void)usbd_dev;
 
@@ -337,38 +380,37 @@ static void usbdev_data_rx_cb(usbd_device *usbd_dev, uint8_t ep)
 	usbd_ep_read_packet(usbd_dev, 0x01,usb_buffer_IN, 64); // Read Paquets from PC
 
 	address = (usb_buffer_IN[3]<<16) | (usb_buffer_IN[2]<<8) | usb_buffer_IN[1];
+	address_max = (usb_buffer_IN[7]<<16) | (usb_buffer_IN[6]<<8) | usb_buffer_IN[5];
+
 			
-
-	if (usb_buffer_IN[0] == WAKEUP)   // Wake UP
-   {
-				memcpy((unsigned char *)usb_buffer_OUT, (unsigned char *)stmReady, sizeof(stmReady));
-				usbd_ep_write_packet(usbd_dev, 0x82,usb_buffer_OUT,64);
-				int i=0;
-				 for(i = 0; i < 64; i++)
-    {
-		usb_buffer_IN[i]=0x00;
-		usb_buffer_OUT[i]=0x00;
-	}
+	if(usb_buffer_IN[0] == WAKEUP){
+		memcpy((unsigned char *)usb_buffer_OUT, (unsigned char *)stmReady, sizeof(stmReady));
+		usbd_ep_write_packet(usbd_dev, 0x82, usb_buffer_OUT, 64);
+		int i=0;
+		for(i = 0; i < 64; i++){
+			usb_buffer_IN[i]=0x00;
+			usb_buffer_OUT[i]=0x00;
+		}
 	}
 
-	if (usb_buffer_IN[0] == READ_GB && usb_buffer_IN[4] != 1 )   // READ GB Exchange mode ( Low Speed)
-   {
-		dump_running = 0;
-		readGB();
-		usbd_ep_write_packet(usbd_dev, 0x82,usb_buffer_OUT,64);
+	if (usb_buffer_IN[0] == READ_GB && usb_buffer_IN[4] != 1 ){   // READ GB Exchange mode ( Low Speed)
+		//dump_running = 0;
+		Mapper =  usb_buffer_IN[8];
+		ROM_Bank = 2 << usb_buffer_IN[9];
+        RAM_Bank = usb_buffer_IN[10];
+		readGB(usbd_dev);
+		//usbd_ep_write_packet(usbd_dev, 0x82, usb_buffer_OUT, 64);
 	}
 
-	if (usb_buffer_IN[0] == READ_GB && usb_buffer_IN[4] == 1 )   // READ GB Streaming mode ( High Speed)
-   {
-		if (identify == 0)
-		{
+	if (usb_buffer_IN[0] == READ_GB && usb_buffer_IN[4] == 1 ){   // READ GB Streaming mode ( High Speed)
+		if (identify == 0){
 			Mapper =  usb_buffer_IN[5];
 			ROM_Bank = 2 << usb_buffer_IN[6];
 			RAM_Bank = usb_buffer_IN[7];			
-			identify =1;	
+			identify = 1;	
 		}
 		dump_running = 1;
-		SendNextPaquet(usbd_dev,0x82);
+		//SendNextPaquet(usbd_dev,0x82);
 	}
 
 }
@@ -377,39 +419,36 @@ static void usbdev_data_rx_cb(usbd_device *usbd_dev, uint8_t ep)
 * This gets called whenever a new OUT packet has been send from STM32 to PC
 */
 
-static void usbdev_data_tx_cb(usbd_device *usbd_dev, uint8_t ep)
-{
-	(void)ep;
-	(void)usbd_dev;
-if ( dump_running == 1 )
-{
-SendNextPaquet(usbd_dev,0x82);
-}
+//static void usbdev_data_tx_cb(usbd_device *usbd_dev, uint8_t ep)
+//{
+//	(void)ep;
+//	(void)usbd_dev;
+//if ( dump_running == 1 )
+//{
+//SendNextPaquet(usbd_dev,0x82);
+//}
+//
+//}
 
-}
 
-
-static void usbdev_set_config(usbd_device *usbd_dev, uint16_t wValue)
-{
+static void usbdev_set_config(usbd_device *usbd_dev, uint16_t wValue){
 	(void)wValue;
 	(void)usbd_dev;
-
-	usbd_ep_setup(usbd_dev, 0x01, USB_ENDPOINT_ATTR_BULK, 64, usbdev_data_rx_cb);
-	usbd_ep_setup(usbd_dev, 0x82, USB_ENDPOINT_ATTR_BULK, 64, usbdev_data_tx_cb);
+	usbd_ep_setup(usbd_dev, 0x01, USB_ENDPOINT_ATTR_BULK, 64, usbdev_data_rx_cb); //in
+	usbd_ep_setup(usbd_dev, 0x82, USB_ENDPOINT_ATTR_BULK, 64, NULL); //out
 }
 
 
 //  Main Fonction ///// 
 
-uint8_t usbd_control_buffer[128];
+uint8_t usbd_control_buffer[256];
 
-int main(void)
-{
+int main(void){
+	
 	int i=0;
 	usbd_device *usbd_dev;
 
     // Init Clock
-
 	rcc_clock_setup_in_hse_8mhz_out_72mhz();
     rcc_periph_clock_enable(RCC_GPIOA);
     rcc_periph_clock_enable(RCC_GPIOB);
@@ -451,18 +490,17 @@ for( i = 0; i < 0x800000; i++){ __asm__("nop"); } //1sec
 	  GPIO_CRL(GPIOB) = 0x33433444;
       GPIO_CRH(GPIOB) = 0x33333333;
 
-  
 
 	/*  gpio_set_mode(GPIOA, GPIO_MODE_OUTPUT_50_MHZ, GPIO_CNF_OUTPUT_PUSHPULL,OE | WE | CE );
 	  gpio_set_mode(GPIOB, GPIO_MODE_OUTPUT_50_MHZ, GPIO_CNF_OUTPUT_PUSHPULL,AUDIO_IN | CPU_CLK | RESET );
 	  GPIOB_BSRR |= RESET | AUDIO_IN | CPU_CLK;*/
 
-GPIOA_BSRR |= OE;
-GPIOA_BSRR |= CLK_CLEAR;
-GPIOB_BSRR |= A15; 
-GPIOB_BSRR |= AUDIO_IN; 
-GPIOB_BSRR |= CPU_CLK; 
-GPIOA_BSRR |= RESET; 
+	GPIOA_BSRR |= OE;
+	GPIOA_BSRR |= CLK_CLEAR;
+	GPIOB_BSRR |= A15; 
+	GPIOB_BSRR |= AUDIO_IN; 
+	GPIOB_BSRR |= CPU_CLK; 
+	GPIOA_BSRR |= RESET; 
 	 
     gpio_set_mode(GPIOC, GPIO_MODE_OUTPUT_50_MHZ, GPIO_CNF_OUTPUT_PUSHPULL, LED_PIN);
 	gpio_set(GPIOC, GPIO13); // Turn Led OFF
@@ -484,13 +522,14 @@ GPIOA_BSRR |= RESET;
    setDataInput();*/
 
 
-	while(1)
-	{
+	while(1){
        usbd_poll(usbd_dev);
 
 	}
 
 }
+
+
 
 
 
