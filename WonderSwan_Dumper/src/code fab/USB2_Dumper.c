@@ -72,17 +72,15 @@ static uint32_t len=0;
 
 static const unsigned char stmReady[] = {'R','E','A','D','Y','!'};
 static unsigned char dump_running = 0;
-static unsigned char flash_running = 0;
 static unsigned long address = 0;
-static unsigned long address_max;
 static unsigned char read8 = 0;
 static unsigned int read16 = 0;
-static unsigned int bank = 0;
-static unsigned char i = 0;
+static unsigned char bank = 0;
 static unsigned char j = 0;
 static unsigned char page_adr = 0;
 static unsigned short bufferMX[128] = {0};
 static unsigned short Current_Word = 0;
+static unsigned long address_max;
 
 //  USB Specific Fonction ///// 
 
@@ -362,19 +360,28 @@ void readROM(){ // 0.253 m/s
 
 void commandMdFlash(unsigned long adr, unsigned int val){
 
-	setAddress(0x20000+adr);
+	/*setAddress(adr);
+	setDataOutput();
+	directWrite16(val);
+	GPIOC_BRR |= IRQ;
+wait(16);
+	GPIOC_BSRR |= IRQ;
+	setAddress(0x10000);*/
+
+	setAddress(adr);
 	GPIOC_BRR |= IRQ;
 	setDataOutput();
 	directWrite16(val);
 	GPIOC_BSRR |= IRQ;
 	setAddress(0x10000);
+
 }
 
 void reset_command(){
 	setDataOutput();
-    commandMdFlash(0xAAAA,0xAA);
-    commandMdFlash(0x5555,0x55);
-    commandMdFlash(0xAAAA,0xF0);
+    commandMdFlash(0x2AAAA,0xAA);
+    commandMdFlash(0x25555,0x55);
+    commandMdFlash(0x2AAAA,0xF0);
 	wait(16);
 }
 
@@ -393,13 +400,13 @@ void infosId()
     commandMdFlash(0x2AAA, 0x55);
     commandMdFlash(0x5555, 0x90);*/
 
- commandMdFlash(0xAAAA,0xAA);
-    commandMdFlash(0x5555,0x55);
-    commandMdFlash(0xAAAA,0x90);
+ commandMdFlash(0x2AAAA,0xAA);
+    commandMdFlash(0x25555,0x55);
+    commandMdFlash(0x2AAAA,0x90);
 
 
 
-    setAddress(0x20000+0);
+    setAddress(0x20000);
 	setDataInput();
     GPIOB_BRR |= OE;
 	wait(16);
@@ -410,15 +417,15 @@ void infosId()
     setAddress(0x10000);
 
 		setDataOutput();
-    commandMdFlash(0xAAAA,0xAA);
-    commandMdFlash(0x5555,0x55);
-    commandMdFlash(0xAAAA,0xF0);
+    commandMdFlash(0x2AAAA,0xAA);
+    commandMdFlash(0x25555,0x55);
+    commandMdFlash(0x2AAAA,0xF0);
 	wait(16);
 
 
- commandMdFlash(0xAAAA,0xAA);
-    commandMdFlash(0x5555,0x55);
-    commandMdFlash(0xAAAA,0x90);
+ commandMdFlash(0x2AAAA,0xAA);
+    commandMdFlash(0x25555,0x55);
+    commandMdFlash(0x2AAAA,0x90);
 
 
 
@@ -440,12 +447,12 @@ void infosId()
 void EraseFlash()
 {
 	unsigned char poll_dq7=0;
-    commandMdFlash(0xAAAA,0xAA);
-    commandMdFlash(0x5555,0x55);
-    commandMdFlash(0xAAAA,0x80);
-    commandMdFlash(0xAAAA,0xAA);
-    commandMdFlash(0x5555,0x55);
-    commandMdFlash(0xAAAA,0x10);
+    commandMdFlash(0x2AAAA,0xAA);
+    commandMdFlash(0x25555,0x55);
+    commandMdFlash(0x2AAAA,0x80);
+    commandMdFlash(0x2AAAA,0xAA);
+    commandMdFlash(0x25555,0x55);
+    commandMdFlash(0x2AAAA,0x10);
 
 
     reset_command();
@@ -521,77 +528,62 @@ void ClearPage()
 	} 
 }
 
+   void WritePage(usbd_device *usbd_dev){
+    unsigned char poll_dq7=0;
+    unsigned char word=0;
+    unsigned char i=0;
+    unsigned int adr=0;
+    word=0;
+    adr=0;
 
-void WritePage(usbd_device *usbd_dev)
-{
-	unsigned char poll_dq7=0;
-	unsigned char word=0;
-	unsigned int adr=0;
+    while(address < address_max){
 
-	 while(bank * 65536 < 4096*1024)
-	{
-				
-            usb_buffer_OUT[0] = 0xFF;
-            usbd_ep_write_packet(usbd_dev, 0x82, usb_buffer_OUT, 64);
-			j=0;
-			 for(i=0;i<4;i++){
+        //prepare MXbuffer (256 chars / 128 words)
+        //read 4 x 64 bytes from PC
+        for(i=0;i<4;i++){
             while(usbd_ep_read_packet(usbd_dev, 0x02, usb_buffer_IN, 64)!=64);    //read from PC
-            memcpy((unsigned short *)bufferMX +(i*32), (unsigned char *)usb_buffer_IN, 64);
+            memcpy((unsigned char *)bufferMX +(i*32), (unsigned char *)usb_buffer_IN, 64);
         }
-            
-	reset_command();
-	setDataInput();
-	wait(16);
-	while (!poll_dq7)
+        writeRegister(2,0);
+
+reset_command();
+    setDataInput();
+    wait(16);
+    while (!poll_dq7)
     {
         poll_dq7 = (GPIOA_IDR >> 3)&0x80; //test only dq7
     }
 
-	commandMdFlash(0xAAAA,0xAA);
-    commandMdFlash(0x5555,0x55);
-    commandMdFlash(0xAAAA,0xA0);
-	wait(60);
-	while ( word < 128)
-	{
-	    commandMdFlash(address+adr,bufferMX[word]);	
-		//commandMdFlash(address+adr,0xAAAA);
-		word++;	
-		adr=adr+2;   
-	}
-   // wait(18000);
-   // wait(9000);
-	wait(5000);
-	setAddress(0x20000);
-	wait(10);
-	GPIOB_BSRR |= OE;
-	wait(30);
-	reset_command();
-		while (!poll_dq7)
-    {
-        poll_dq7 = (GPIOA_IDR >> 3)&0x80; //test only dq7
-    }
-	GPIOB_BSRR |= OE;
-	wait(10);
-	setAddress(0x20000);
-	reset_command();
-	address +=256;
-	word=0;
-	adr=0;
-    gpio_clear(GPIOC, GPIO13);
-len +=256;
-// Bankswitch//
-if ( len == 65536)
-	{
-		bank++;
-		writeRegister(2,bank);	
-		len=0;
-	    address=0;
-	}
- }
-	
+    commandMdFlash(0x2AAAA,0xAA);
+    commandMdFlash(0x25555,0x55);
+    commandMdFlash(0x2AAAA,0xA0);
+        
+        wait(60);
+            word=0;
+        adr=0;
+        
+        while(word < 128){
+            commandMdFlash(address+adr+0x20000,bufferMX[word]);    
+            word++;    
+            adr+=2;   
+        }
 
-}
-
+        
+    
+        wait(5000); //sur le code MD c'était 18000 (mais je n'ai pas comparé les fonctions wait(n)
+        address += 256;
+        setAddress(0x20000);
+        GPIOB_BSRR |= OE;
+        wait(16);
+        reset_command();
+        while(!poll_dq7){
+            poll_dq7 = (GPIOA_IDR >> 3)&0x80; //test only dq7
+        }
+        gpio_clear(GPIOC, GPIO13);
+        GPIOB_BSRR |= OE;
+        reset_command();
+    }  
+}   
 
 
 /// USB Specific Function
@@ -673,10 +665,13 @@ static void usbdev_data_rx_cb(usbd_device *usbd_dev, uint8_t ep)
 
 	usb_buffer_IN[0] = 0;
 	cleanBuffer_OUT();
-
 	usbd_ep_read_packet(usbd_dev, 0x01,usb_buffer_IN, 64); // Read Paquets from PC
+
 	address = (usb_buffer_IN[3]<<16) | (usb_buffer_IN[2]<<8) | usb_buffer_IN[1];
-	dump_running = usb_buffer_IN[4];	
+	address_max = (usb_buffer_IN[7]<<16) | (usb_buffer_IN[6]<<8) | usb_buffer_IN[5];
+
+	dump_running = usb_buffer_IN[4];
+		
 
 	if (usb_buffer_IN[0] == WAKEUP)   // Wake UP
    {
@@ -729,10 +724,8 @@ static void usbdev_data_rx_cb(usbd_device *usbd_dev, uint8_t ep)
 	if (usb_buffer_IN[0] == WRITE_FLASH)   
 
      {
-		  flash_running = 1;
-		  address_max = (usb_buffer_IN[7]<<16) | (usb_buffer_IN[6]<<8) | usb_buffer_IN[5];	
-		  writeRegister(2,bank);
 		  WritePage(usbd_dev);
+		  gpio_clear(GPIOC, GPIO13);
 	}
 
 	if (usb_buffer_IN[0] == LOAD_PAGE)   
@@ -751,7 +744,7 @@ static void usbdev_data_rx_cb(usbd_device *usbd_dev, uint8_t ep)
 		usbd_ep_write_packet(usbd_dev, 0x82,usb_buffer_OUT,64);
    }
 
-
+	
 
 }
 
@@ -779,7 +772,7 @@ static void usbdev_set_config(usbd_device *usbd_dev, uint16_t wValue)
 
 	usbd_ep_setup(usbd_dev, 0x01, USB_ENDPOINT_ATTR_BULK, 64, usbdev_data_rx_cb);
 	usbd_ep_setup(usbd_dev, 0x82, USB_ENDPOINT_ATTR_BULK, 64, usbdev_data_tx_cb);
-	usbd_ep_setup(usbd_dev, 0x02, USB_ENDPOINT_ATTR_BULK, 64, NULL);
+	usbd_ep_setup(usbd_dev, 0x02, USB_ENDPOINT_ATTR_BULK, 64, NULL); //read stream no int
 }
 
 

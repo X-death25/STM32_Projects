@@ -173,9 +173,6 @@ int main()
     unsigned char region[5];
     unsigned char odd=0;
     unsigned long Game_size=0;
-	unsigned long bank_number=0;
-	unsigned long page_number=0;
-	unsigned long page_counter=0;
     unsigned char Game_type=0;
     unsigned char bank=0;
     char *game_region = NULL;
@@ -183,7 +180,7 @@ int main()
     int checksum_header = 0;
     unsigned char manufacturer_id=0;
     unsigned char chip_id=0;
-    unsigned int page_offset=0;
+    unsigned char page_offset=0;
 
     // File manipulation Specific Var
 
@@ -415,7 +412,7 @@ int main()
 
 // Clean Register //
 
-    usb_buffer_out[0] = WRITE_REGISTER;// Affect request to  WakeUP Command
+   usb_buffer_out[0] = WRITE_REGISTER;// Affect request to  WakeUP Command
     usb_buffer_out[1] = 0x00;
     usb_buffer_out[2] = 0x00;
     usb_buffer_out[3] = 0x00;
@@ -497,76 +494,42 @@ int main()
         fclose(myfile);
         break;
 
-    case 5: // Write MD Flash
-
-        // Select ROM File :
-
-        printf(" ROM file: ");
-        scanf("%60s", dump_name);
-        myfile = fopen(dump_name,"rb");
-        fseek(myfile,0,SEEK_END);
-        game_size = ftell(myfile);
-        buffer_rom = (unsigned char*)malloc(game_size);
-        rewind(myfile);
-        fread(buffer_rom, 1, game_size, myfile);
-        fclose(myfile);
-		
-		address=0;
-	    game_size = game_size;
-		j=0;
-
-		printf("\nSize of game is : %ld",game_size);
-		bank_number = game_size/65536;
-		printf("\nBank number :  %ld",bank_number);
-		page_number = game_size/256;
-		printf("\nPage number :  %ld",page_number);
-
-		// Prepare first send with start adress and Game size
-
-        usb_buffer_out[0] = WRITE_FLASH; // Select write in 16bit Mode
-        usb_buffer_out[1] = address & 0xFF;
-        usb_buffer_out[2] = (address & 0xFF00)>>8;
-        usb_buffer_out[3] = (address & 0xFF0000)>>16;
-		usb_buffer_out[5]=game_size & 0xFF;
-        usb_buffer_out[6]=(game_size & 0xFF00)>>8;
-        usb_buffer_out[7]=(game_size & 0xFF0000)>>16;
-        libusb_bulk_transfer(handle, 0x01,usb_buffer_out, sizeof(usb_buffer_out), &numBytes, 60000);
-
-while ( j < game_size )
-
-{
-
-		// Wait for ack before send first page
-
-			usb_buffer_in[0]!=0x00;
-		 while(usb_buffer_in[0]!=0xFF)
+   case 5: // Write Flash
+    printf(" ROM file: ");
+    scanf("%60s", dump_name);
+    myfile = fopen(dump_name,"rb");
+    fseek(myfile,0,SEEK_END);
+    game_size = ftell(myfile);
+    printf("\nla taille de la rom est %ld",game_size);
+    buffer_rom = (unsigned char*)malloc(game_size);
+    rewind(myfile);
+    fread(buffer_rom, 1, game_size, myfile);
+    fclose(myfile);
+    
+    printf("\nSending command Write Page !");
+    
+    //init commande write STM32
+    address = 0; //init
+    usb_buffer_out[0] = WRITE_FLASH;
+    usb_buffer_out[1] = address & 0xFF;
+    usb_buffer_out[2] = (address & 0xFF00)>>8;
+    usb_buffer_out[3] = (address & 0xFF0000)>>16;
+	usb_buffer_out[5]=game_size & 0xFF;
+    usb_buffer_out[6]=(game_size & 0xFF00)>>8;
+    usb_buffer_out[7]=(game_size & 0xFF0000)>>16;
+         libusb_bulk_transfer(handle, 0x01, usb_buffer_out, sizeof(usb_buffer_out), &numBytes, 6000);
+    
+    while(address <= game_size){
+        memcpy((unsigned char *)usb_buffer_out, (unsigned char *)buffer_rom +address, 64);
+         libusb_bulk_transfer(handle, 0x02, usb_buffer_out, sizeof(usb_buffer_out), &numBytes, 6000);
+        address += 64;
+		while(usb_buffer_in[0]!=0xFF)
             {
                 libusb_bulk_transfer(handle, 0x82, usb_buffer_in, sizeof(usb_buffer_in), &numBytes, 6000);   //wait status
             }
-
-
-        // Load page
-
-		printf("\n Loading Page...");
-
-		 page_offset = 0; 
-        while(page_offset<4){
-            memcpy((unsigned char *)usb_buffer_out, (unsigned char *)buffer_rom +j +(page_offset * 64), 64);
-            libusb_bulk_transfer(handle, 0x02, usb_buffer_out, sizeof(usb_buffer_out), &numBytes, 6000);
-            page_offset++;
-        }
-           j+=256;
-        printf("\n Page Loaded...");
-        page_counter++;
-		page_offset=0;
-        printf("\nPage %ld/%ld Writted !",page_counter,page_number);
-
-}
-
-
-        printf("\nWrite ROM completed !\n");
-        scanf("%d");
-        break;
+    }
+    printf("\nWrite ROM finished !");
+    break;
 
     case 6: //ERASE FLASH
 
