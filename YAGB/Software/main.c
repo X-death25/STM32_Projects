@@ -72,7 +72,9 @@ int main()
 	int choixMenu=0;
 	unsigned long address=0;
 	unsigned char *BufferROM;
+	unsigned char *BufferRAM;
 	int game_size=0;
+	int save_size=0;
 	FILE *myfile;
 
   // Rom Header info
@@ -231,11 +233,11 @@ printf("\nGame Size is :  %ld Ko",Rom_Size/1024);
 Ram_Size = usb_buffer_in[21];
 printf("\nRam Size : ");
 if ( Ram_Size == 0x00){ printf("None");}
-if ( Ram_Size == 0x01){ printf("2 Ko");}
-if ( Ram_Size == 0x02){ printf("8 Ko");}
-if ( Ram_Size == 0x03){ printf("32 Ko ");}
-if ( Ram_Size == 0x04){ printf("128 Ko");}
-if ( Ram_Size == 0x05){ printf("64 Ko");}
+if ( Ram_Size == 0x01){ printf("2 Ko");save_size=2*1024;}
+if ( Ram_Size == 0x02){ printf("8 Ko");save_size=8*1024;}
+if ( Ram_Size == 0x03){ printf("32 Ko ");save_size=32*1024;}
+if ( Ram_Size == 0x04){ printf("128 Ko");save_size=128*1024;}
+if ( Ram_Size == 0x05){ printf("64 Ko");save_size=64*1024;}
 CGB = usb_buffer_in[15];
 if ( CGB  == 0xC0){ printf("\nGame only works on GameBoy Color");}
 else { printf("\nGameBoy / GameBoy Color compatible game");}
@@ -244,8 +246,11 @@ if ( SGB  == 0x00){ printf("\nNo Super GameBoy enhancements");}
 if ( SGB  == 0x03){ printf("\nGame have Super GameBoy function");}
 	
 printf("\n\n --- MENU ---\n");
-printf(" 1) Dump GB ROM\n"); 
-printf(" 2) Debug\n"); 
+printf(" 1) Dump GB ROM\n");
+printf(" 2) Dump GB Save\n"); 
+printf(" 3) Write GB Save\n"); 
+printf(" 4) Erase GB Save\n"); 
+printf(" 0) Debug\n"); 
 
 
 printf("\nYour choice: \n");
@@ -293,8 +298,7 @@ BufferROM = (unsigned char*)malloc(game_size);
             			usb_buffer_out[6]=(game_size & 0xFF00)>>8;
             			usb_buffer_out[7]=(game_size & 0xFF0000)>>16;
 						usb_buffer_out[8]=Rom_Type;
-						usb_buffer_out[9]=usb_buffer_in[20]; // for calculate number of rom bank
-						usb_buffer_out[10]=usb_buffer_in[21];
+
 /*
 						usb_buffer_out[6]=usb_buffer_in[20]; // for calculate number of rom bank
 						usb_buffer_out[7]=usb_buffer_in[21]; // for calculate number of ram bank*/
@@ -314,7 +318,62 @@ BufferROM = (unsigned char*)malloc(game_size);
        					fclose(myfile);
  break;
 
-case 2:  // DEBUG
+
+case 2: // READ GB SAVE
+ 
+    	choixMenu=0;
+				printf(" 1) Auto (from header)\n");
+        		printf(" 2) Manual\n");
+				printf(" Your choice: ");
+        		scanf("%d", &choixMenu);
+					if(choixMenu!=1)
+					{
+            			printf(" Enter number of KB to dump: ");
+            			scanf("%d", &save_size );
+						Ram_Size *= 1024;
+					}
+						    
+				printf("Sending command Dump SAVE \n");
+        		printf("Dumping please wait ...\n");
+				address=0;
+				printf("\nSave Size : %ld Ko \n",save_size/1024);
+				BufferRAM = (unsigned char*)malloc(save_size);
+   
+// Cleaning RAM Buffer
+     for (i=0; i<save_size; i++)
+        {
+            BufferRAM[i]=0x00;
+        }
+	
+		address=0xA000;
+
+						usb_buffer_out[0] = READ_GB_SAVE;           				
+						usb_buffer_out[1]=address & 0xFF;
+            			usb_buffer_out[2]=(address & 0xFF00)>>8;
+            			usb_buffer_out[3]=(address & 0xFF0000)>>16;
+            			usb_buffer_out[4]=0;
+						usb_buffer_out[5]= save_size & 0xFF;
+            			usb_buffer_out[6]=(save_size & 0xFF00)>>8;
+            			usb_buffer_out[7]=(save_size & 0xFF0000)>>16;
+						usb_buffer_out[8]=Rom_Type;
+
+
+libusb_bulk_transfer(handle, 0x01,usb_buffer_out, sizeof(usb_buffer_out), &numBytes, 60000);
+						printf("RAM dump in progress...\n"); 
+						res = libusb_bulk_transfer(handle, 0x82,BufferRAM,save_size, &numBytes, 60000);
+  							if (res != 0)
+  								{
+    								printf("Error \n");
+    								return 1;
+  								}     
+ 						printf("\nDump Save completed !\n");
+						myfile = fopen("dump_save.sav","wb");
+						fwrite(BufferRAM, 1,save_size, myfile);
+       					fclose(myfile);
+		
+break;
+
+case 0:  // DEBUG
 
         while (1)
         {
