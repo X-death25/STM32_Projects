@@ -27,10 +27,11 @@ X-death 09/2019
 #define WE GPIO10 //PA10
 #define CE GPIO8  //PA8
 #define RESET GPIO6  // PA6
+#define A15 GPIO5          // PA5
+#define AUDIO_IN	GPIO7  // PA7  GB Extra lines
 
-#define AUDIO_IN	GPIO4  // PB4  GB Extra lines
 #define CPU_CLK 	GPIO7  // PB7
-#define A15 GPIO3          // PB3
+
 
 
 #define CLK_CLEAR 	GPIO0  // PA0  Dumper MUX
@@ -65,6 +66,7 @@ static unsigned char dump_running = 0;
 static unsigned long address = 0;
 static unsigned char Bank = 0; // Number of ROM bank always start at bank 1
 static unsigned char Mapper = 0;   // Mapper Type
+static unsigned char Disable_USB = 0;   // Mapper Type
 
 //  USB Specific Fonction /////
 
@@ -221,15 +223,35 @@ void setAddress (unsigned long address)
 
 }
 
-void writeFlash8(int address, int byte)
+
+void writeGB(int address, int byte)
 {
     setAddress(address);
     setDataOutput();
     GPIO_ODR(GPIOB) = (byte<<8);
+	wait(8400);
     GPIOA_BRR |= WE;
-    wait(260);
+	GPIOA_BRR |= AUDIO_IN;
+    wait(8400);
     GPIOA_BSRR |= WE;
+	GPIOA_BRR |= AUDIO_IN;
+    wait(8400);
+    setDataInput();
+}
+
+void writeFlash8(int address, int byte)
+{
+    GPIOB_BSRR |= A15; //CE 1
+	GPIOA_BRR |= AUDIO_IN; //WE 1
+	setAddress(address);
     wait(260);
+	GPIOB_BRR |= A15; // CE 0
+	GPIOA_BRR |= AUDIO_IN; // WE 0
+	setDataOutput();
+    GPIO_ODR(GPIOB) = (byte<<8);
+    wait(260);
+	GPIOA_BRR |= AUDIO_IN; //WE 1
+	GPIOB_BSRR |= A15; //CE 1
     setDataInput();
 }
 
@@ -275,7 +297,7 @@ void BankswitchROM()
         switch(Mapper)
         {
         case 0:
-            writeFlash8(0x6000, 0); // Set ROM Mode
+            writeGB(0x6000, 0); // Set ROM Mode
             address_mapper = (address & 0x7FFF);
             break;
         case 1:
@@ -283,9 +305,9 @@ void BankswitchROM()
         case 3:
             if(address > 0x3FFF)
             {
-                writeFlash8(0x6000, 0); // Set ROM Mode
-                writeFlash8(0x2000, Bank & 0x1F);
-                writeFlash8(0x4000, Bank >> 5);
+                writeGB(0x6000, 0); // Set ROM Mode
+                writeGB(0x2000, Bank & 0x1F);
+                writeGB(0x4000, Bank >> 5);
                 address_mapper = 0x4000 + (address & 0x3FFF);
                 //address_mapper = 0x8000 + (address & 0x3FFF);
             }
@@ -293,7 +315,7 @@ void BankswitchROM()
         case 6:
             if(address > 0x3FFF)
             {
-                writeFlash8(0x2100,Bank);
+                writeGB(0x2100,Bank);
                 address_mapper = 0x4000 + (address & 0x3FFF);
             }
             break;
@@ -302,7 +324,7 @@ void BankswitchROM()
             gpio_clear(GPIOC, GPIO13); // Turn Led OFF
             if(address > 0x3FFF)
             {
-                writeFlash8(0x2100,Bank);
+                writeGB(0x2100,Bank);
                 address_mapper = 0x4000 + (address & 0x3FFF);
             }
             break;
@@ -310,7 +332,7 @@ void BankswitchROM()
         case 25:
             if(address > 0x3FFF)
             {
-                writeFlash8(0x2100,Bank);
+                writeGB(0x2100,Bank);
                 address_mapper = 0x4000 + (address & 0x3FFF);
             }
             break;
@@ -318,13 +340,13 @@ void BankswitchROM()
         case 27:
 		    if(address > 0x3FFF)
             {
-                writeFlash8(0x2100,Bank);
+                writeGB(0x2100,Bank);
                 address_mapper = 0x4000 + (address & 0x3FFF);
 			}
 
             break;
         default: //0
-            writeFlash8(0x6000, 0); // Set ROM Mode
+            writeGB(0x6000, 0); // Set ROM Mode
             address_mapper = 0x4000 + (address & 0x3FFF);
         }
     }
@@ -358,30 +380,30 @@ void BankswitchRAM()
 
 		case 03: // MBC1 + RAM + BATTERY
 			
-			writeFlash8(0x6000, 0x01); // Set MBC1 to RAM Banking Mode
-			writeFlash8(0x0000, 0x0A); // Enable RAM
+			writeGB(0x6000, 0x01); // Set MBC1 to RAM Banking Mode
+			writeGB(0x0000, 0x0A); // Enable RAM
             if(address > 0xBFFF)
             {
-                writeFlash8(0x4000,Bank);
+                writeGB(0x4000,Bank);
                 address_mapper = 0xA000 + (address & 0xBFFF);
             }
 
 		case 06: // MBC2 + BATTERY
 
 			gpio_clear(GPIOC, GPIO13); // Turn Led ON
-			writeFlash8(0x0000, 0x0A); // Enable RAM
+			writeGB(0x0000, 0x0A); // Enable RAM
             if(address > 0xBFFF)
             {
-                writeFlash8(0x4000,Bank);
+                writeGB(0x4000,Bank);
                 address_mapper = 0xA000 + (address & 0xBFFF);
             }
 
         case 27: // MBC5 + RAM + BATTERY
 			gpio_clear(GPIOC, GPIO13); // Turn Led ON
-			writeFlash8(0x0000, 0x0A); // Enable RAM
+			writeGB(0x0000, 0x0A); // Enable RAM
             if(address > 0xBFFF)
             {
-                writeFlash8(0x4000,Bank);
+                writeGB(0x4000,Bank);
                 address_mapper = 0xA000 + (address & 0xBFFF);
             }
             break;
@@ -428,6 +450,7 @@ void readGB(usbd_device *usbd_dev)
             GPIOA_BRR |= CLK2;
             GPIOA_BSRR |= CLK2;
             GPIO_CRH(GPIOB) = 0x44444444; //set pb8-15 as data IN
+           	wait(4);
             GPIOA_BRR |= OE;
             wait(32);
             usb_buffer_OUT[adr] = (GPIO_IDR(GPIOB) & 0xFF00) >> 8; //save into read16 global
@@ -435,7 +458,8 @@ void readGB(usbd_device *usbd_dev)
             adr++;
             address++;
         }
-        while(usbd_ep_write_packet(usbd_dev, 0x82, usb_buffer_OUT, 64)==0); //send 64B packet
+		if ( Disable_USB == 0){
+        while(usbd_ep_write_packet(usbd_dev, 0x82, usb_buffer_OUT, 64)==0);} //send 64B packet
     }
 
 }
@@ -465,8 +489,9 @@ void readGBSave(usbd_device *usbd_dev)
             GPIOA_BRR |= CLK2;
             GPIOA_BSRR |= CLK2;
             GPIO_CRH(GPIOB) = 0x44444444; //set pb8-15 as data IN
+			wait(64);
             GPIOA_BRR |= OE;
-            wait(16);
+            wait(64);
             usb_buffer_OUT[adr] = (GPIO_IDR(GPIOB) & 0xFF00) >> 8; //save into read16 global
             GPIOA_BSRR |= OE;
             adr++;
@@ -487,7 +512,14 @@ void ResetFlash(void)
 
 void EraseFlash()
 {
-
+writeGB(0x5555,0xAA);
+writeGB(0x2AAA,0x55);
+writeGB(0x5555,0x80);
+writeGB(0x5555,0xAA);
+writeGB(0x2AAA,0x55);
+writeGB(0x5555,0x10);
+wait(170000); // ~20Ms
+gpio_clear(GPIOC, GPIO13);
 }
 
 void writeGBFlash()
@@ -549,9 +581,17 @@ static void usbdev_data_rx_cb(usbd_device *usbd_dev, uint8_t ep)
     {
         //dump_running = 0;
         Mapper =  usb_buffer_IN[8];
-		address_max = address_max + 0xA000;
+		address_max = address_max + 0xA000;	
         readGBSave(usbd_dev);
         //usbd_ep_write_packet(usbd_dev, 0x82, usb_buffer_OUT, 64);
+    }
+
+	if (usb_buffer_IN[0] == ERASE_GB_FLASH )    // Erase GB Flash 
+    {
+        EraseFlash();
+		usb_buffer_OUT[0]=0x01;
+		usbd_ep_write_packet(usbd_dev, 0x82, usb_buffer_OUT, 64);
+
     }
 
 
@@ -644,8 +684,8 @@ int main(void)
 
     GPIOA_BSRR |= OE;
     GPIOA_BSRR |= CLK_CLEAR;
-    GPIOB_BSRR |= A15;
-    GPIOB_BSRR |= AUDIO_IN;
+    GPIOA_BRR |= A15;
+    GPIOA_BSRR |= AUDIO_IN;
     GPIOB_BSRR |= CPU_CLK;
     GPIOA_BSRR |= RESET;
 
@@ -654,7 +694,13 @@ int main(void)
 
     dump_running = 0;
 
-    // Custom Test //
+    // Do a first read for init Mapper correctly ... //
+
+	address = 0;
+    address_max = 1024*32;
+	Disable_USB = 1;
+	readGB(usbd_dev);
+	Disable_USB = 0;
 
     //byte=0x01;
     /* setAddress(0x2000);
@@ -676,6 +722,7 @@ int main(void)
     }
 
 }
+
 
 
 

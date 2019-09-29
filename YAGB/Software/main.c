@@ -76,6 +76,7 @@ int main()
 	int game_size=0;
 	int save_size=0;
 	FILE *myfile;
+	const char * wheel[] = { "-","\\","|","/"}; //erase wheel
 
   // Rom Header info
 
@@ -250,6 +251,8 @@ printf(" 1) Dump GB ROM\n");
 printf(" 2) Dump GB Save\n"); 
 printf(" 3) Write GB Save\n"); 
 printf(" 4) Erase GB Save\n"); 
+printf(" 5) Write GB Flash\n");
+printf(" 6) Erase GB Flash\n");
 printf(" 0) Debug\n"); 
 
 
@@ -372,6 +375,29 @@ libusb_bulk_transfer(handle, 0x01,usb_buffer_out, sizeof(usb_buffer_out), &numBy
        					fclose(myfile);
 		
 break;
+
+ case 6: //ERASE FLASH
+
+        usb_buffer_out[0] = ERASE_GB_FLASH;
+        libusb_bulk_transfer(handle, 0x01,usb_buffer_out, sizeof(usb_buffer_out), &numBytes, 60000);
+        i=0;
+        while(usb_buffer_in[0]!=0x01)
+        {
+            libusb_bulk_transfer(handle, 0x82, usb_buffer_in, sizeof(usb_buffer_in), &numBytes, 6000);   //wait status
+            printf("\r ERASE flash in progress: %s ", wheel[i]);
+            fflush(stdout);
+            i++;
+            if(i==4)
+            {
+                i=0;
+            }
+        }
+
+        printf("\r ERASE SMD flash in progress: 100%%");
+        fflush(stdout);
+
+        break;
+
 
 case 0:  // DEBUG
 
