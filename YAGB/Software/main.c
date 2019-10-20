@@ -77,6 +77,8 @@ int main()
 	int save_size=0;
 	FILE *myfile;
 	const char * wheel[] = { "-","\\","|","/"}; //erase wheel
+	unsigned char manufacturer_id=0;
+	unsigned char chip_id=0;
 
   // Rom Header info
 
@@ -253,6 +255,7 @@ printf(" 3) Write GB Save\n");
 printf(" 4) Erase GB Save\n"); 
 printf(" 5) Write GB Flash\n");
 printf(" 6) Erase GB Flash\n");
+printf(" 8) Flash Memory Detection \n");
 printf(" 0) Debug\n"); 
 
 
@@ -397,6 +400,21 @@ break;
         fflush(stdout);
 
         break;
+case 8: // Vendor / ID Info
+
+
+						printf("Detecting Flash...\n");
+						usb_buffer_out[0] = INFOS_ID;
+						libusb_bulk_transfer(handle, 0x01,usb_buffer_out, sizeof(usb_buffer_out), &numBytes, 60000);
+						libusb_bulk_transfer(handle, 0x82, usb_buffer_in, sizeof(usb_buffer_in), &numBytes, 6000); 
+						manufacturer_id = usb_buffer_in[1];
+						chip_id = usb_buffer_in[3];
+						printf("Manufacturer ID : %02X \n",usb_buffer_in[1]);
+						printf("Chip ID : %02X \n",usb_buffer_in[3]);
+						scanf("%d");
+								
+						break; 
+
 
 
 case 0:  // DEBUG

@@ -229,29 +229,12 @@ void writeGB(int address, int byte)
     setAddress(address);
     setDataOutput();
     GPIO_ODR(GPIOB) = (byte<<8);
-	wait(8400);
+	 wait(260);
     GPIOA_BRR |= WE;
-	GPIOA_BRR |= AUDIO_IN;
-    wait(8400);
+     wait(260);;
     GPIOA_BSRR |= WE;
 	GPIOA_BRR |= AUDIO_IN;
-    wait(8400);
-    setDataInput();
-}
-
-void writeFlash8(int address, int byte)
-{
-    GPIOB_BSRR |= A15; //CE 1
-	GPIOA_BRR |= AUDIO_IN; //WE 1
-	setAddress(address);
-    wait(260);
-	GPIOB_BRR |= A15; // CE 0
-	GPIOA_BRR |= AUDIO_IN; // WE 0
-	setDataOutput();
-    GPIO_ODR(GPIOB) = (byte<<8);
-    wait(260);
-	GPIOA_BRR |= AUDIO_IN; //WE 1
-	GPIOB_BSRR |= A15; //CE 1
+     wait(260);
     setDataInput();
 }
 
@@ -503,21 +486,37 @@ void readGBSave(usbd_device *usbd_dev)
 
 }
 
-
-
-void ResetFlash(void)
+void writeFlash8(int address, int byte)
 {
-
+	setAddress(address);
+	GPIOB_BRR |= A15; // CE 0
+    GPIOA_BRR |= WE;
+	setDataOutput();
+	GPIO_ODR(GPIOB) = (byte<<8);
+	GPIOA_BSRR |= WE;
+	GPIOB_BSRR |= A15; //CE 1
+    setDataInput();
 }
+
+void reset_command()
+{
+setDataOutput();
+writeFlash8(0x5555,0xAA);
+writeFlash8(0x2AAA,0x55);
+writeFlash8(0x5555,0xF0);
+}
+
 
 void EraseFlash()
 {
-writeGB(0x5555,0xAA);
-writeGB(0x2AAA,0x55);
-writeGB(0x5555,0x80);
-writeGB(0x5555,0xAA);
-writeGB(0x2AAA,0x55);
-writeGB(0x5555,0x10);
+
+writeFlash8(0x5555,0xAA);
+writeFlash8(0x2AAA,0x55);
+writeFlash8(0x5555,0x80);
+writeFlash8(0x5555,0xAA);
+writeFlash8(0x2AAA,0x55);
+writeFlash8(0x5555,0x10);
+
 wait(170000); // ~20Ms
 gpio_clear(GPIOC, GPIO13);
 }
@@ -528,6 +527,69 @@ void writeGBFlash()
 }
 void infosId()
 {
+	/*GPIOA_BSRR |= CLK1 | CLK2;
+    GPIOA_BSRR |= OE;
+    GPIOA_BSRR |= CLK_CLEAR;
+	GPIOA_BSRR |= WE;
+
+	GPIO_CRH(GPIOB) = 0x33333333; //set pb8-15 as data 
+
+
+    // Reset flash
+       writeGB(0x555, 0xaa);
+	writeGB(0x2aa, 0x55);
+	writeGB(0x555, 0xF0);
+	wait(100);
+ 
+
+	// ID command sequence
+    writeGB(0x555, 0xaa);
+    writeGB(0x2aa, 0x55);
+    writeGB(0x555, 0x90);
+
+	
+
+	        GPIO_CRH(GPIOB) = 0x33333333; //set pb8-15 as data OUT
+            GPIO_ODR(GPIOB) = ((0) & 0xFF) << 8;
+            GPIOA_BRR |= CLK1;
+            GPIOA_BSRR |= CLK1;
+            GPIO_ODR(GPIOB) = (0) & 0xFF00; //address MSB
+            GPIOA_BRR |= CLK2;
+            GPIOA_BSRR |= CLK2;
+            GPIO_CRH(GPIOB) = 0x44444444; //set pb8-15 as data IN
+           	wait(4);
+            GPIOA_BRR |= OE;
+            wait(32);
+            usb_buffer_OUT[1] = (GPIO_IDR(GPIOB) & 0xFF00) >> 8; //save into read16 global
+            GPIOA_BSRR |= OE;
+
+    // Reset flash
+       writeGB(0x555, 0xaa);
+	writeGB(0x2aa, 0x55);
+	writeGB(0x555, 0xF0);
+	wait(100);
+ 
+
+	// ID command sequence
+    writeGB(0x555, 0xaa);
+    writeGB(0x2aa, 0x55);
+    writeGB(0x555, 0x90);
+
+			GPIO_CRH(GPIOB) = 0x33333333; //set pb8-15 as data OUT
+            GPIO_ODR(GPIOB) = ((2) & 0xFF) << 8;
+            GPIOA_BRR |= CLK1;
+            GPIOA_BSRR |= CLK1;
+            GPIO_ODR(GPIOB) = (0) & 0xFF00; //address MSB
+            GPIOA_BRR |= CLK2;
+            GPIOA_BSRR |= CLK2;
+            GPIO_CRH(GPIOB) = 0x44444444; //set pb8-15 as data IN
+           	wait(4);
+            GPIOA_BRR |= OE;
+            wait(32);
+            usb_buffer_OUT[3] = (GPIO_IDR(GPIOB) & 0xFF00) >> 8; //save into read16 global
+            GPIOA_BSRR |= OE;
+  
+*/
 
 }
 
@@ -588,11 +650,22 @@ static void usbdev_data_rx_cb(usbd_device *usbd_dev, uint8_t ep)
 
 	if (usb_buffer_IN[0] == ERASE_GB_FLASH )    // Erase GB Flash 
     {
+		reset_command();
         EraseFlash();
 		usb_buffer_OUT[0]=0x01;
 		usbd_ep_write_packet(usbd_dev, 0x82, usb_buffer_OUT, 64);
 
     }
+
+	if (usb_buffer_IN[0] == INFOS_ID)   // Chip Information
+   {
+		/*dump_running = 0;
+		GPIOA_BRR |= WE;
+		usb_buffer_OUT[6]=0xFF;
+		infosId();
+		usbd_ep_write_packet(usbd_dev, 0x82,usb_buffer_OUT,64);
+		usb_buffer_OUT[6]=0x00;*/
+   }
 
 
 }
@@ -696,11 +769,11 @@ int main(void)
 
     // Do a first read for init Mapper correctly ... //
 
-	address = 0;
+	/*address = 0;
     address_max = 1024*32;
 	Disable_USB = 1;
 	readGB(usbd_dev);
-	Disable_USB = 0;
+	Disable_USB = 0;*/
 
     //byte=0x01;
     /* setAddress(0x2000);
