@@ -8,9 +8,9 @@
 # download https://github.com/libusb/libusb/releases
 
 set(CMAKE_SYSTEM_NAME Windows)
-set(TOOLCHAIN_PREFIX x86_64-w64-mingw32)
+#set(TOOLCHAIN_PREFIX x86_64-w64-mingw32)
 #Uncomment these line for use 32bit instead of 64 bit
-#set(TOOLCHAIN_PREFIX i686-w64-mingw32)
+set(TOOLCHAIN_PREFIX i686-w64-mingw32)
 
 # cross compilers to use for C and C++
 set(CMAKE_C_COMPILER ${TOOLCHAIN_PREFIX}-gcc)

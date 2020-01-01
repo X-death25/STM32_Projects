@@ -29,6 +29,7 @@
 #define WAKEUP  0x10  // WakeUP for first STM32 Communication
 #define READ_GB 0x11
 #define READ_GB_SAVE 0x12
+#define ERASE_GB_SAVE 0x17
 #define WRITE_GB_SAVE 0x13
 #define WRITE_GB_FLASH 	0x14
 #define ERASE_GB_FLASH 0x15
@@ -73,8 +74,10 @@ int main()
 	unsigned long address=0;
 	unsigned char *BufferROM;
 	unsigned char *BufferRAM;
+	unsigned char *buffer_save = NULL;
+	char dump_name[64];
 	int game_size=0;
-	int save_size=0;
+	unsigned long save_size=0;
 	FILE *myfile;
 	const char * wheel[] = { "-","\\","|","/"}; //erase wheel
 	unsigned char manufacturer_id=0;
@@ -129,7 +132,7 @@ int main()
 
   /* Claim interface #0. */
 
-  res = libusb_claim_interface(handle, 0);
+ res = libusb_claim_interface(handle, 0);
   if (res != 0)
   {
 	res = libusb_claim_interface(handle, 1);
@@ -327,7 +330,7 @@ BufferROM = (unsigned char*)malloc(game_size);
 
 case 2: // READ GB SAVE
  
-    	choixMenu=0;
+    			choixMenu=0;
 				printf(" 1) Auto (from header)\n");
         		printf(" 2) Manual\n");
 				printf(" Your choice: ");
@@ -351,16 +354,13 @@ case 2: // READ GB SAVE
             BufferRAM[i]=0x00;
         }
 	
-		address=0xA000;
+		address=0;
 
 						usb_buffer_out[0] = READ_GB_SAVE;           				
 						usb_buffer_out[1]=address & 0xFF;
             			usb_buffer_out[2]=(address & 0xFF00)>>8;
             			usb_buffer_out[3]=(address & 0xFF0000)>>16;
             			usb_buffer_out[4]=0;
-						usb_buffer_out[5]= save_size & 0xFF;
-            			usb_buffer_out[6]=(save_size & 0xFF00)>>8;
-            			usb_buffer_out[7]=(save_size & 0xFF0000)>>16;
 						usb_buffer_out[8]=Rom_Type;
 
 
@@ -373,11 +373,93 @@ libusb_bulk_transfer(handle, 0x01,usb_buffer_out, sizeof(usb_buffer_out), &numBy
     								return 1;
   								}     
  						printf("\nDump Save completed !\n");
-						myfile = fopen("dump_save.sav","wb");
+						myfile = fopen("dump_gb.sav","wb");
 						fwrite(BufferRAM, 1,save_size, myfile);
        					fclose(myfile);
-		
-break;
+						break;
+
+ case 3:  // WRITE SRAM
+
+        printf(" ALL DATAS WILL BE ERASED BEFORE ANY WRITE!\n");
+        printf(" Save file: ");
+        scanf("%60s", dump_name);
+        myfile = fopen(dump_name,"rb");
+        fseek(myfile,0,SEEK_END);
+        save_size = ftell(myfile);
+        buffer_save = (unsigned char*)malloc(save_size);
+        rewind(myfile);
+        fread(buffer_save, 1, save_size, myfile);
+        fclose(myfile);
+
+        // Erase SRAM
+
+        		printf("Erasing GB Save...");
+        	    usb_buffer_out[0] = ERASE_GB_SAVE;
+			    usb_buffer_out[4] = 0; // Slow Mode
+				usb_buffer_out[5] = 0; // Bank Number
+				usb_buffer_out[6] = Rom_Type; // Rom_Type
+				usb_buffer_in[7] = 0x00;
+
+				libusb_bulk_transfer(handle, 0x01,usb_buffer_out, sizeof(usb_buffer_out), &numBytes, 60000);
+        while ( usb_buffer_in[7] != 0xAA)
+        {
+            libusb_bulk_transfer(handle, 0x82, usb_buffer_in, sizeof(usb_buffer_in), &numBytes, 6000);
+        }
+
+        printf("SRAM Sucessfully Erased ...\n");
+
+        // Write SRAM
+
+        i=0;
+        j=0;
+		unsigned long k=0;
+        address=0;
+        while ( j < 8192)
+        {
+            // Fill usb out buffer with save data
+            for (i=32; i<64; i++)
+            {
+                usb_buffer_out[i] = buffer_save[k];
+                k++;
+            }
+            i=0;
+            j+=64;
+            usb_buffer_out[0] = WRITE_GB_SAVE; // Select write in 8bit Mode
+            usb_buffer_out[1]=address & 0xFF;
+            usb_buffer_out[2]=(address & 0xFF00)>>8;
+            usb_buffer_out[3]=(address & 0xFF0000)>>16;
+            usb_buffer_out[7] = 0x00;
+            libusb_bulk_transfer(handle, 0x01,usb_buffer_out, sizeof(usb_buffer_out), &numBytes, 60000);
+            while ( usb_buffer_in[7] != 0xAA)
+            {
+                libusb_bulk_transfer(handle, 0x82, usb_buffer_in, sizeof(usb_buffer_in), &numBytes, 6000);
+            }
+            address+=32;
+        }
+
+        printf("SRAM Sucessfully Writted ...\n");
+        break;
+
+
+
+case 4: // Erase GB SAVE
+ 
+    			choixMenu=0;
+				printf("Erasing GB Save...");
+        	    usb_buffer_out[0] = ERASE_GB_SAVE;
+			    usb_buffer_out[4] = 0; // Slow Mode
+				usb_buffer_out[5] = 0; // Bank Number
+				usb_buffer_out[6] = Rom_Type; // Rom_Type
+
+				libusb_bulk_transfer(handle, 0x01,usb_buffer_out, sizeof(usb_buffer_out), &numBytes, 60000);
+        while ( usb_buffer_in[7] != 0xAA)
+        {
+            libusb_bulk_transfer(handle, 0x82, usb_buffer_in, sizeof(usb_buffer_in), &numBytes, 6000);
+        }
+
+        printf("SRAM Sucessfully Erased ...\n");
+
+				break;
 
  case 6: //ERASE FLASH
 
