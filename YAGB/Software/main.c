@@ -236,6 +236,7 @@ if ( Rom_Type == 0xFE){ printf("(HuC3)");}
 if ( Rom_Type == 0xFF){ printf("(HuC1+RAM+BATTERY)");}
 Rom_Size= (32768 << usb_buffer_in[20]); // Rom Size
 printf("\nGame Size is :  %ld Ko",Rom_Size/1024);
+if ( Rom_Type != 0x06) {
 Ram_Size = usb_buffer_in[21];
 printf("\nRam Size : ");
 if ( Ram_Size == 0x00){ printf("None");}
@@ -244,6 +245,8 @@ if ( Ram_Size == 0x02){ printf("8 Ko");save_size=8*1024;}
 if ( Ram_Size == 0x03){ printf("32 Ko ");save_size=32*1024;}
 if ( Ram_Size == 0x04){ printf("128 Ko");save_size=128*1024;}
 if ( Ram_Size == 0x05){ printf("64 Ko");save_size=64*1024;}
+}
+else{Ram_Size = 512; printf("\nRam Size : 512 bytes ");save_size=512;}
 CGB = usb_buffer_in[15];
 if ( CGB  == 0xC0){ printf("\nGame only works on GameBoy Color");}
 else { printf("\nGameBoy / GameBoy Color compatible game");}
@@ -337,7 +340,7 @@ case 2: // READ GB SAVE
         		scanf("%d", &choixMenu);
 					if(choixMenu!=1)
 					{
-            			printf(" Enter number of KB to dump: ");
+            			printf(" Enter number of byte to dump: ");
             			scanf("%d", &save_size );
 						Ram_Size *= 1024;
 					}
@@ -362,6 +365,7 @@ case 2: // READ GB SAVE
             			usb_buffer_out[3]=(address & 0xFF0000)>>16;
             			usb_buffer_out[4]=0;
 						usb_buffer_out[8]=Rom_Type;
+						usb_buffer_out[9]=save_size/1024;
 
 
 libusb_bulk_transfer(handle, 0x01,usb_buffer_out, sizeof(usb_buffer_out), &numBytes, 60000);

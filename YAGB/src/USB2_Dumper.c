@@ -68,8 +68,9 @@ static unsigned char dump_running = 0;
 static unsigned long address = 0;
 static unsigned char Bank = 0; // Number of ROM bank always start at bank 1
 static unsigned char Mapper = 0;   // Mapper Type
+static unsigned char Ram_Size = 0;   // Mapper Type
+static unsigned char Bank_Number = 0;   // Number of ram Bank
 static unsigned char Init_Mapper = 0;   // Mapper Type
-static unsigned char Disable_USB = 0;   // Mapper Type
 
 //  USB Specific Fonction /////
 
@@ -388,7 +389,7 @@ void BankswitchRAM()
 
 			gpio_clear(GPIOC, GPIO13); // Turn Led ON
 			writeGB(0x0000, 0x0A); // Enable RAM
-	if(address > 0xBFFF)
+			if(address > 0xBFFF)
             {
                 writeGB(0x4000,Bank);
                // address_mapper = 0xA000;
@@ -417,18 +418,7 @@ void BankswitchRAM()
          }
      
     }
-     else
-    {
-        // always in the same bank
-        if(address > 0xBFFF)
-        {
-            address_mapper = (address & 0xA000);
-        }
-        else
-        {
-            address_mapper = (address & 0xBFFF);
-        }
-    }
+     
 }
 
 void readGB(usbd_device *usbd_dev)
@@ -465,15 +455,56 @@ void readGB(usbd_device *usbd_dev)
             adr++;
             address++;
         }
-		if ( Disable_USB == 0){
-        while(usbd_ep_write_packet(usbd_dev, 0x82, usb_buffer_OUT, 64)==0);} //send 64B packet
+        while(usbd_ep_write_packet(usbd_dev, 0x82, usb_buffer_OUT, 64)==0); //send 64B packet
     }
+
+}
+
+void Mapper_Init()
+{
+
+	 switch(Mapper)
+        {
+
+		case 03: // MBC1 + RAM + BATTERY
+			
+			if ( Ram_Size == 8){
+			writeFlash8(0x6000, 0x00);  // Select MBC1 correct RAM mode
+			address_max = 8192;}					   
+			if ( Ram_Size == 32){
+			writeFlash8(0x6000, 0x01); // Select MBC1 correct RAM mode
+			address_max = 32768;}
+			writeFlash8(0x0000, 0x0A); // Enable RAM
+			break;
+
+		case 06: // MBC2 + BATTERY
+
+			writeFlash8(0x0000, 0x0A); // Enable RAM
+			address_max = 512;
+			break;
+
+		case 10: // MBC3 + RAM + BATTERY
+
+			writeFlash8(0x0000, 0x0A); // Enable RAM
+			address_max = 32768;
+            break;
+
+		case 27: // MBC5 + RAM + BATTERY
+			
+			if ( Ram_Size == 8){
+			address_max = 8192;}					   
+			if ( Ram_Size == 32){
+			address_max = 32768;}
+			writeFlash8(0x0000, 0x0A); // Enable RAM
+			break;
+		}
 
 }
 
 void readGBSave(usbd_device *usbd_dev)
 {
    unsigned char adr = 0;
+   unsigned char bank = 0;
     prev_Bank = 0; //init
 
      GPIOA_BSRR |= (CLK1 | CLK2 | WE | OE) | (CLK_CLEAR << 16);
@@ -494,20 +525,21 @@ void readGBSave(usbd_device *usbd_dev)
 	wait(32);
     setDataOutput();
 
-    //address = 0xA000
-    address_max = 8192;
-    //ena SRAM
-	writeFlash8(0x6000, 0x01);      
-    writeFlash8(0x0000, 0x0A);
+	Mapper_Init();
+	writeFlash8(0x4000,0);
+	writeFlash8(0x0000, 0x0A);
 	GPIOA_BSRR |= A15;
 	GPIOA_BRR |= CE;
-    
-    while(address < address_max){
+
+	address_mapper = 0;
+    while(address_mapper != address_max){
         adr = 0; //init
-        address_mapper = 0xA000 + (address & 0x3FFF);
-         //BankswitchRAM(); //upd 'only' when necessary 
+		GPIOA_BSRR |= A15;
+      //  address_mapper = 0xA000 + (address & 0x3FFF);
+        // BankswitchRAM(); //upd 'only' when necessary 
         while(adr < 64){
-          	setAddress(adr + 0xA000 + address);
+          	setAddress(adr + 0xA000 + address );
+			// setAddress(adr + 0xA000 + address)
             GPIO_CRH(GPIOB) = AS_INPUT;
             GPIO_BRR(GPIOA) |= OE;
             wait(32);
@@ -516,11 +548,23 @@ void readGBSave(usbd_device *usbd_dev)
             adr++;
         }
         address+=64;
+		address_mapper+=64;
+		 if ( address_mapper == 8192){GPIOA_BRR |= A15;writeFlash8(0x6000, 0x01);writeFlash8(0x4000,1),address=0;writeFlash8(0x0000, 0x0A);}
+        if ( address_mapper == 8192*2){GPIOA_BRR |= A15;writeFlash8(0x6000, 0x01);writeFlash8(0x4000,2);address=0;writeFlash8(0x0000, 0x0A);}
+        if ( address_mapper == 8192*3){GPIOA_BRR |= A15;writeFlash8(0x6000, 0x01);writeFlash8(0x4000,3);address=0;writeFlash8(0x0000, 0x0A);}
+
         while(usbd_ep_write_packet(usbd_dev, 0x82, usb_buffer_OUT, 64)==0);
     }
     //disa SRAM
     writeFlash8(0x0000, 0x0);
-      gpio_set(GPIOC, GPIO13); // led off
+    //  gpio_set(GPIOC, GPIO13); // led off
+
+	/*writeFlash8(0x6000, 0x01); // Select MBC1 correct RAM mode
+	writeFlash8(0x4000,3);
+	writeFlash8(0x0000, 0x0A); // Enable RAM
+	//writeFlash8(0x4000,0);*/
+
+//
 }
 
 void EraseGBSave(void)
@@ -800,6 +844,7 @@ static void usbdev_data_rx_cb(usbd_device *usbd_dev, uint8_t ep)
     {
         //dump_running = 0;
         Mapper =  usb_buffer_IN[8];
+		Ram_Size =  usb_buffer_IN[9];
 		readGBSave(usbd_dev);
 			// Set correct MBC1 mode : mode 0
     }
@@ -945,66 +990,21 @@ int main(void)
 
 	// First Read test
 
-/*	GPIOA_BSRR |= A15;
-	GPIOA_BSRR |= OE;
-	setAddress(0);
-	setDataOutput();
-	wait(32);
-	GPIOA_BRR |= A15;
-	GPIOA_BRR |= OE;
-	wait(32);
-	GPIO_CRH(GPIOB) = 0x44444444; //set pb8-15 as data IN;*/
+	// Custom RAM test
 
-    // Do a first read for init Mapper correctly ... //
+	/*writeFlash8(0x6000, 0x01); // Select MBC1 correct RAM mode
+	writeFlash8(0x4000,3);
+	writeFlash8(0x0000, 0x0A); // Enable RAM
+	//writeFlash8(0x4000,0);
 
-	// MBC1 Custom Test
+	//GPIOA_BSRR |= A15;
+	//GPIOA_BRR |= CE;
 
-	// Set correct MBC1 mode : mode 0
+	while (1);*/
 
-/*	GPIOA_BRR |= A15;
-	setAddress(0x6000);
-	setDataOutput();
-	GPIO_ODR(GPIOB) = (0x00<<8);
-	GPIOA_BRR |= WE;
-	wait(32);
-    GPIOA_BSRR |= WE;
 
-	
 
-	// Bankswitch to RAM
 
-	 setAddress(0);
-     setDataOutput();
-	 GPIO_ODR(GPIOB) = (0x0A<<8);
-	 GPIOA_BRR |= WE;
-	 wait(32);
-     GPIOA_BSRR |= WE;
-
-	// Read First byte
-
-	GPIOA_BRR |= OE;
-	wait(32);
-	GPIO_CRH(GPIOB) = 0x44444444; //set pb8-15 as data IN;**/
-
-	
-
-	/*address = 0;
-    address_max = 1024*32;
-	Disable_USB = 1;
-	readGB(usbd_dev);
-	Disable_USB = 0;*/
-
-    //byte=0x01;
-    /* setAddress(0x2000);
-     setDataOutput();
-     GPIO_ODR(GPIOB) = (byte<<8);
-    GPIOA_BRR |= WE;
-    wait(160);
-    GPIOA_BSRR |= WE;
-    wait(160);
-    writeFlash8(0x2000,byte & 0x1F);
-    setAddress(0x4000);
-    setDataInput();*/
 
 
     while(1)
