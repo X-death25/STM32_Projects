@@ -23,7 +23,7 @@
 
 // Specific Win32 lib ( only used for debug )
 
-#include <conio.h>
+// #include <conio.h>
 
 // USB Special Command
 
@@ -180,6 +180,7 @@ int main()
     int checksum_header = 0;
     unsigned char manufacturer_id=0;
     unsigned char chip_id=0;
+	unsigned char sms_bank=0;
 
     // File manipulation Specific Var
 
@@ -264,38 +265,21 @@ int main()
 
 
     printf("Sega Dumper Found ! \n");
-    printf("Reading cartridge...\n");
+    printf("Reading cartridge type ...\n");
 
 
-// At this step we can try to read the buffer wake up Sega Dumper
+// At this step we can try to read the buffer first wake up Sega Dumper
 
     usb_buffer_out[0] = WAKEUP;// Affect request to  WakeUP Command
 
     libusb_bulk_transfer(handle, 0x01,usb_buffer_out, sizeof(usb_buffer_out), &numBytes, 0); // Send Packets to Sega Dumper
 
-    libusb_bulk_transfer(handle, 0x82, usb_buffer_in, sizeof(usb_buffer_in), &numBytes, 0); // Receive packets from Sega Dumper
-    /*
-    printf("\nDisplaying USB IN buffer\n\n");
+    libusb_bulk_transfer(handle, 0x82, usb_buffer_in, sizeof(usb_buffer_in), &numBytes, 0);
 
-       for (i = 0; i < 64; i++)
-        {
-            printf("%02X ",usb_buffer_in[i]);
-    		j++;
-    		if (j==16){printf("\n");j=0;}
-        }
+		
+// Now try to detect cartridge type ( SMS or MD )
 
-        printf("\nSega Dumper %.*s",6, (char *)usb_buffer_in);
-    		printf("\n");
-
-
-      for (i = 0; i < 64; i++)
-        {
-          usb_buffer_in[i]=0x00;
-          usb_buffer_out[i]=0x00;
-    	}
-    */
-
-    // Now try to read ROM MD Header
+	// First try to read ROM MD Header
 
     buffer_header = (unsigned char *)malloc(0x200);
     i = 0;
@@ -306,8 +290,6 @@ int main()
     {
         buffer_header[i]=0x00;
     }
-
-    i = 0;
 
     i = 0;
 
@@ -330,7 +312,8 @@ int main()
 
     if(memcmp((unsigned char *)buffer_header,"SEGA",4) == 0)
     {
-        printf("\nMegadrive/Genesis/32X cartridge detected!\n");
+		printf("\nMegadrive/Genesis/32X cartridge detected!\n");
+
         for(i=0; i<(256/16); i++)
         {
             printf("\n");
@@ -341,8 +324,8 @@ int main()
             }
             printf(" %.*s", 16, buffer_header +(i*16));
         }
-        printf("\n");
 
+        printf("\n");
         printf("\n --- HEADER ---\n");
         memcpy((unsigned char *)dump_name, (unsigned char *)buffer_header+32, 48);
         trim((unsigned char *)dump_name, 0);
@@ -430,18 +413,53 @@ int main()
             {
                 printf(" No information on this game!\n");
             }
-        }
+		  }
+		}
+		
 
-    } // No Sega Megadrive cartridge Detected
+	else   // Try to read in SMS mode
+	{
+		
+		address = 0x7FF0;
+		usb_buffer_out[0] = READ_SMS;
+		usb_buffer_out[1] = address&0xFF ;
+        usb_buffer_out[2] = (address&0xFF00)>>8;
+        usb_buffer_out[3]=(address & 0xFF0000)>>16;
+        usb_buffer_out[4] = 0; // Slow Mode
 
-    else
-    {
+        libusb_bulk_transfer(handle, 0x01,usb_buffer_out, sizeof(usb_buffer_out), &numBytes, 0); 
+    	libusb_bulk_transfer(handle, 0x82, usb_buffer_in, sizeof(usb_buffer_in), &numBytes, 0);
 
-        printf(" \nUnknown cartridge type\n(erased flash eprom, Sega Mark III game, bad connection,...)\n");
-    }
+		/*printf("\nDisplaying USB IN buffer\n\n");
+       for (i = 0; i < 64; i++)
+        {
+            printf("%02X ",usb_buffer_in[i]);
+    		j++;
+    		if (j==16){printf("\n");j=0;}
+        }*/
 
+		if(memcmp((unsigned char *)usb_buffer_in,"TMR SEGA",8) == 0)
+    		{
+				printf("\nMaster System/Mark3 cartridge detected !\n");
+				printf("Region : ");
+				if ( usb_buffer_in[15] >> 6 == 0x01 ){ printf("USA / EUR\n");}
+				if ( usb_buffer_in[15] >> 4 == 0x03 ){ printf("Japan\n");}
+				if ( usb_buffer_in[15] >> 4 == 0x03 ){ printf("Japan\n");}
+				game_size = usb_buffer_in[15] & 0xF;
+				//printf("Game Size : %ld Ko \n",game_size);
+				if (game_size == 0x00){ printf("Game Size : 256 Ko");game_size = 256*1024;}
+				if (game_size == 0x01){ printf("Game Size : 512 Ko");game_size = 512*1024;}
+				if (game_size == 0x0c){ printf("Game Size : 32 Ko");game_size = 32*1024;}
+				if (game_size == 0x0e){ printf("Game Size : 64 Ko");game_size = 64*1024;}
+				if (game_size == 0x0f){ printf("Game Size : 128 Ko");game_size = 128*1024;}
+				
+			}
 
-
+		else 
+			{
+				printf(" \nUnknown cartridge type\n(erased flash eprom or bad connection,...)\n");
+			}
+	}
 
     printf("\n\n --- MENU ---\n");
     printf(" 1) Dump MD ROM\n");
@@ -450,7 +468,6 @@ int main()
     printf(" 4) Erase MD Save\n");
     printf(" 5) Write MD Flash\n");
     printf(" 6) Erase MD Flash\n");
-
     printf(" 7) Master System Mode\n");
     printf(" 8) Flash Memory Detection \n");
     printf(" 9) Debug Mode \n");
@@ -744,6 +761,55 @@ int main()
         fflush(stdout);
 
         break;
+
+    case 7: // Master System Mode
+
+			choixMenu=0;
+        	printf(" 1) Auto (from header)\n");
+        	printf(" 2) Manual\n");
+        	printf(" Your choice: ");
+        	scanf("%d", &choixMenu);
+        	if(choixMenu==2)
+        	{
+            	printf(" Enter number of KB to dump: ");
+            	scanf("%d", &game_size);
+				game_size *= 1024;
+        	}
+        	printf("Sending command Dump ROM \n");
+        	printf("Dumping please wait ...\n");
+        	printf("\nRom Size : %ld Ko \n",game_size/1024);
+		    buffer_rom = (unsigned char*)malloc(game_size); // raw buffer
+        // Cleaning ROM Buffer
+        for (i=0; i<game_size; i++)
+        {
+            buffer_rom[i]=0x00;
+        }
+
+		address = 0;
+		i=0;
+		j=0;
+		sms_bank=0;
+        while ( i< game_size)
+        {
+            usb_buffer_out[0] = READ_SMS;
+			usb_buffer_out[1] = address&0xFF ;
+        	usb_buffer_out[2] = (address&0xFF00)>>8;
+        	usb_buffer_out[3]=(address & 0xFF0000)>>16;
+       		usb_buffer_out[4] = 0; // Slow Mode		
+			usb_buffer_out[5] = sms_bank; // Bank	
+            libusb_bulk_transfer(handle, 0x01,usb_buffer_out, sizeof(usb_buffer_out), &numBytes, 60000);
+            libusb_bulk_transfer(handle, 0x82,(buffer_rom+i),64, &numBytes, 60000);
+            address +=64; //next adr
+            i+=64;
+			j+=64;
+            printf("\r ROM dump in progress: %ld%%", ((100 * i)/game_size));
+            fflush(stdout);
+        }
+
+			myfile = fopen("dump_sms.sms","wb");
+            fwrite(buffer_rom,1,game_size, myfile);
+            fclose(myfile);
+			break;
 
     case 8: // Vendor / ID Info
 

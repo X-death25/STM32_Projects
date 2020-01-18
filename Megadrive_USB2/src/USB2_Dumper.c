@@ -76,6 +76,9 @@ static unsigned char read8 = 0;
 static unsigned int read16 = 0;
 static unsigned int chipid = 0;
 
+static unsigned int slotRegister = 0; //for SMS
+static unsigned int slotAdr = 0; //for SMS
+
 // Debug Mode
 static unsigned char debug_mode = 0;
 static unsigned char Debug_Time =0;
@@ -386,6 +389,69 @@ void readMd()  // 0.253 m/s
 
 }
 
+void sms_mapper_register(unsigned char slot){
+
+    setDataOutput();
+
+    setAddress(slotRegister);
+ 	GPIOA_BSRR |= CE; //A15 hi
+   	GPIOB_BRR  |= OE;
+    GPIOC_BRR  |= WE_SRAM;
+
+    directWrite8(slot); //slot 0..2
+
+    GPIOC_BSRR |= WE_SRAM;
+   	GPIOB_BSRR |= OE;
+	GPIOA_BRR  |= CE; //A15 low
+
+}
+
+void readSMS()
+{
+    unsigned char adr = 0;
+	unsigned char pageNum = 0;
+
+    gpio_set_mode(GPIOA, GPIO_MODE_OUTPUT_50_MHZ, GPIO_CNF_OUTPUT_PUSHPULL, MARK3); //Mark as output (low)
+	GPIOA_BSRR |= CLK1| CLK2 | CLK3 | TIME | WE_FLASH | ((CE | MARK3 | CLK_CLEAR)<<16);
+	GPIOB_BSRR |= OE;
+	GPIOA_BSRR |= CLK_CLEAR;
+
+   	if(address < 0x4000){
+  		slotRegister = 0xFFFD; 	// slot 0 sega
+  		pageNum = 0;
+   		slotAdr = address;
+   	}else if(address < 0x8000){
+  		slotRegister = 0xFFFE; 	// slot 1 sega
+  		pageNum = 1;
+   		slotAdr = address;
+   	}else{
+  		slotRegister = 0xFFFF; 	// slot 2 sega
+  		pageNum = (address/0x4000); //page num max 0xFF - 32mbits
+   		slotAdr = 0x8000 + (address & 0x3FFF);
+   	}
+
+	sms_mapper_register(pageNum);
+
+	if(slotAdr > 0x7FFF){GPIOA_BSRR |= CE;} //CE md == A15 in SMS mode !
+
+    while(adr<64){
+
+		setAddress(slotAdr +adr);
+
+	    setDataInput();
+	    GPIOB_BRR |= OE;
+
+	    wait(16);
+
+	    directRead8(); //save into read8 global
+        usb_buffer_OUT[adr] = read8;
+
+	    GPIOB_BSRR |= OE;
+		adr++;
+
+	}
+}
+
 void readMdSave()
 {
 
@@ -539,6 +605,7 @@ void commandMdFlash(unsigned long adr, unsigned int val)
 
     directWrite16(val);
     GPIOA_BSRR |= WE_FLASH;
+    GPIOC_BSRR |= WE_SRAM;
     GPIOA_BSRR |= CE;
 }
 
@@ -649,14 +716,19 @@ void writeMdFlash()
             setDataOutput();
 
 
-            commandMdFlash(0x5555, 0xAAAA);
+            /*commandMdFlash(0x5555, 0xAAAA);
             commandMdFlash(0x2AAA, 0x5555);
             commandMdFlash(0x5555, 0xA0A0);
 
             commandMdFlash(0x5555, 0xAA);
             commandMdFlash(0x2AAA, 0x55);
-            commandMdFlash(0x5555, 0xA0);
-            commandMdFlash((address+adr16), val16);
+            commandMdFlash(0x5555, 0xA0);*/
+            //commandMdFlash((address+adr16), val16);
+            CFIWordProgram();
+            writeFlash16((address+adr16), val16)
+            ;
+
+
 
 
             if(((chipid&0xFF00)>>8) == 0xBF)
@@ -791,7 +863,6 @@ void SendNextPaquet(usbd_device *usbd_dev, uint8_t ep)
     len +=32;
 }
 
-
 /*
 * This gets called whenever a new IN packet has arrived from PC to STM32
  */
@@ -866,6 +937,13 @@ static void usbdev_data_rx_cb(usbd_device *usbd_dev, uint8_t ep)
         writeMdFlash();
         usbd_ep_write_packet(usbd_dev, 0x82,usb_buffer_OUT,64);
         usb_buffer_OUT[6]=0x00;
+    }
+
+    if (usb_buffer_IN[0] == READ_SMS) // Read SMS
+    {
+		dump_running = 0;		
+		readSMS();
+		usbd_ep_write_packet(usbd_dev, 0x82,usb_buffer_OUT,64);	
     }
 
     if (usb_buffer_IN[0] == INFOS_ID)   // Chip Information
@@ -1009,6 +1087,15 @@ int main(void)
     gpio_set(GPIOC, GPIO13); // Turn Led OFF
 
     dump_running = 0;
+
+// Simple Flash Test
+    /*
+    ResetFlash();
+    CFIWordProgram();
+    writeFlash16(0,0xBBBB);
+
+    */
+
 
 
     while(1)
